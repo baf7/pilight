@@ -31,33 +31,35 @@
 #include "gc.h"
 #include "ehome.h"
 
-static void ehomeCreateMessage(int id, int state) {
+static void ehomeCreateMessage(int id, int unit, int state) {
 	ehome->message = json_mkobject();
 	json_append_member(ehome->message, "id", json_mknumber(id));
+	json_append_member(ehome->message, "unit", json_mknumber(unit));
 	if(state == 1) {
-		json_append_member(ehome->message, "state", json_mkstring("on"));
-	} else {
 		json_append_member(ehome->message, "state", json_mkstring("off"));
+	} else {
+		json_append_member(ehome->message, "state", json_mkstring("on"));
 	}
 }
 
 static void ehomeParseCode(void) {
 	int i = 0;
 	for(i=0; i<ehome->rawlen; i+=4) {
-		if(ehome->code[i+3] == 1) {
+		if(ehome->code[i+2] == 1) {
 			ehome->binary[i/4]=1;
 		} else {
 			ehome->binary[i/4]=0;
 		}
 	}
 
-	int id = binToDec(ehome->binary, 1, 3);
-	int state = ehome->binary[0];
+	int id = binToDec(ehome->binary, 1, 4);
+	int unit = binToDecRev(ehome->binary, 5, 7);
+	int state = ehome->binary[11];
 
-	ehomeCreateMessage(id, state);
+	ehomeCreateMessage(id, unit, state);
 }
 
-static void ehomeCreateLow(int s, int e) {
+static void ehomeCreateHigh(int s, int e) {
 	int i;
 
 	for(i=s;i<=e;i+=4) {
@@ -67,7 +69,7 @@ static void ehomeCreateLow(int s, int e) {
 		ehome->raw[i+3]=ehome->plslen->length;
 	}
 }
-
+/*
 static void ehomeCreateMed(int s, int e) {
 	int i;
 
@@ -78,8 +80,8 @@ static void ehomeCreateMed(int s, int e) {
 		ehome->raw[i+3]=ehome->plslen->length;
 	}
 }
-
-static void ehomeCreateHigh(int s, int e) {
+*/
+static void ehomeCreateLow(int s, int e) {
 	int i;
 
 	for(i=s;i<=e;i+=4) {
@@ -108,11 +110,25 @@ static void ehomeCreateId(int id) {
 	}
 }
 
+static void ehomeCreateUnit(int unit) {
+	int binary[255];
+	int length = 0;
+	int i=0, x=0;
+
+	length = decToBinRev(unit, binary);
+	for(i=0;i<=length;i++) {
+		if(binary[i]==1) {
+			x=i*4;
+			ehomeCreateHigh(20+x, 20+(x+3));
+		}
+	}
+}
+
 static void ehomeCreateState(int state) {
-	if(state == 0) {
-		ehomeCreateMed(0, 3);
-	} else {
-		ehomeCreateHigh(0, 3);
+	ehomeCreateHigh(366, 3);
+	ehomeCreateHigh(40, 3);
+	if(state == 1) {
+		ehomeCreateHigh(44, 3);
 	}
 }
 
@@ -123,26 +139,30 @@ static void ehomeCreateFooter(void) {
 
 static int ehomeCreateCode(JsonNode *code) {
 	int id = -1;
+	int unit = -1;
 	int state = -1;
 	double itmp = 0;
 
 	if(json_find_number(code, "id", &itmp) == 0)
 		id = (int)round(itmp);
+	if(json_find_number(code, "unit", &itmp) == 0)
+		unit = (int)round(itmp);
 	if(json_find_number(code, "off", &itmp) == 0)
-		state=0;
-	else if(json_find_number(code, "on", &itmp) == 0)
 		state=1;
+	else if(json_find_number(code, "on", &itmp) == 0)
+		state=0;
 
-	if(id == -1 || state == -1) {
+	if(id == -1 || unit == -1 || state == -1) {
 		logprintf(LOG_ERR, "ehome: insufficient number of arguments");
 		return EXIT_FAILURE;
-	} else if(id > 7 || id < 0) {
+	} else if(id > 15 || id < 0) {
 		logprintf(LOG_ERR, "ehome: invalid id range");
 		return EXIT_FAILURE;
 	} else {
-		ehomeCreateMessage(id, state);
 		ehomeClearCode();
+		ehomeCreateMessage(id, unit, state);
 		ehomeCreateId(id);
+		ehomeCreateUnit(unit);
 		ehomeCreateState(state);
 		ehomeCreateFooter();
 	}
@@ -151,6 +171,7 @@ static int ehomeCreateCode(JsonNode *code) {
 
 static void ehomePrintHelp(void) {
 	printf("\t -i --id=id\t\t\tcontrol a device with this id\n");
+	printf("\t -u --unit=unit\t\t\tcontrol this unit\n");
 	printf("\t -t --on\t\t\tsend an on signal\n");
 	printf("\t -f --off\t\t\tsend an off signal\n");
 }
@@ -163,14 +184,15 @@ void ehomeInit(void) {
 	protocol_register(&ehome);
 	protocol_set_id(ehome, "ehome");
 	protocol_device_add(ehome, "ehome", "eHome Switches");
-	protocol_plslen_add(ehome, 282);
+	protocol_plslen_add(ehome, 290);
 	ehome->devtype = SWITCH;
 	ehome->hwtype = RF433;
 	ehome->pulse = 3;
 	ehome->rawlen = 50;
 	ehome->binlen = 12;
 
-	options_add(&ehome->options, 'i', "id", OPTION_HAS_VALUE, CONFIG_ID, JSON_NUMBER, NULL, "^([0-4])$");
+	options_add(&ehome->options, 'i', "id", OPTION_HAS_VALUE, CONFIG_ID, JSON_NUMBER, NULL, "^([1-9]|1[0-5])$");
+	options_add(&ehome->options, 'u', "unit", OPTION_HAS_VALUE, CONFIG_ID, JSON_NUMBER, NULL, "^([0-4])$");
 	options_add(&ehome->options, 't', "on", OPTION_NO_VALUE, CONFIG_STATE, JSON_STRING, NULL, NULL);
 	options_add(&ehome->options, 'f', "off", OPTION_NO_VALUE, CONFIG_STATE, JSON_STRING, NULL, NULL);
 
@@ -184,9 +206,9 @@ void ehomeInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "ehome";
-	module->version =  "0.3";
-	module->reqversion =  "4.0";
-	module->reqcommit =  "45";
+	module->version =  "0.4";
+	module->reqversion =  "5.0";
+	module->reqcommit =  "0";
 }
 
 void init(void) {
