@@ -76,7 +76,9 @@ static void beamishSwParseCode(void) {
 		all = 1;
 	}
 
-	beamishSwCreateMessage(id, unit, state, all);
+	if(unit != -1) {
+		beamishSwCreateMessage(id, unit, state, all);
+	}
 }
 
 static void beamishSwCreateHigh(int s, int e) {

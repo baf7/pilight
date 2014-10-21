@@ -5,6 +5,7 @@ set(PROTOCOL_ALECTO_WS1700 ON CACHE BOOL "support for the Alecto WS1700 protocol
 set(PROTOCOL_ALECTO_WSD17 ON CACHE BOOL "support for the Alecto WSD 17 protocol")
 set(PROTOCOL_ALECTO_WX500 ON CACHE BOOL "support for the Alecto WX500 protocol")
 set(PROTOCOL_BEAMISH_SWITCH ON CACHE BOOL "support for the Beamish switch protocol")
+set(PROTOCOL_BEAMISH_SWITCH_RAW ON CACHE BOOL "support for raw unit address Beamish switch protocol")
 set(PROTOCOL_AURIOL ON CACHE BOOL "support for the Auriol weather station protocol")
 set(PROTOCOL_RPI_TEMP ON CACHE BOOL "support for the RPi temperature sensor")
 set(PROTOCOL_BRENNENSTUHL_SWITCH ON CACHE BOOL "support for the Brennenstuhl switch protocol")
