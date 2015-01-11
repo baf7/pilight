@@ -1463,6 +1463,12 @@ void *receive_code(void *param) {
 	int plslen = 0, rawlen = 0;
 	int rawcode[MAXPULSESTREAMLENGTH] = {0};
 	int duration = 0;
+int manchester_rawlen = 0;
+int manchester_pulse_counter = 0;
+int manchester_duration = 0;
+int manchester_state = 0;
+int manchester_sync = 976;
+
 	struct timeval tp;
 	struct timespec ts;
 	struct sigaction act;
@@ -1497,9 +1503,51 @@ void *receive_code(void *param) {
 
 			if(duration > 0) {
 				rawcode[rawlen] = duration;
+printf("\n duration: %d", duration);
+// Sample stream
+// Analyse stream for repetitive pulses
+// They are uncommon in regular header/footer based streams
+// oregon21: either 16, 24, 32
+// Marker criteria is the first deviating pulse:
+// - distance of pulses between marker is rawlen of pulse stream
+// - duration of repetitive pulses is footer
+// As pilight will only accept footer values that do not deviate by more than -/+170µS we use that parameter here as well
+				if ( abs(manchester_sync - duration) <= 220) {
+					manchester_pulse_counter++;
+					manchester_duration += rawcode[rawlen];
+printf("\n m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
+				} else {
+// Check if we found the deviating pulse after a series of consecutive pulses
+					if (manchester_pulse_counter > 24) {
+// Above threshold, so we can now calculate the header/footer value
+// we do need to check if we are at the start or at the end, in order to determine the rawlen parameter.
+// In order to get a reliable rawlen value, it is the value defined by the
+						if (manchester_state == 0) {
+// at the start
+							manchester_state = 1;
+							manchester_duration = 0;
+							manchester_pulse_counter = 0;
+							rawlen = 0;
+							rawcode[rawlen] = duration;
+						} else {
+							rawlen = manchester_pulse_counter;
+							duration = manchester_duration;
+						}
+					} else {
+// Below threshold, so we have to reset and will continue to check
+						rawlen = 0;
+						manchester_duration = 0;
+						manchester_pulse_counter = 0;
+					}
+				}
 				rawlen++;
+
 				if(rawlen > MAXPULSESTREAMLENGTH-1) {
 					rawlen = 0;
+					manchester_duration = 0;
+					manchester_rawlen = 0;
+					manchester_pulse_counter = 0;
+					manchester_state = 0;
 				}
 				if(duration > 5100) {
 					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
@@ -1510,6 +1558,10 @@ void *receive_code(void *param) {
 						receive_queue(rawcode, rawlen, plslen, hw->type);
 					}
 					rawlen = 0;
+					manchester_duration = 0;
+					manchester_rawlen = 0;
+					manchester_pulse_counter = 0;
+					manchester_state = 0;
 				}
 			/* Hardware failure */
 			} else if(duration == -1) {
