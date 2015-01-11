@@ -1515,26 +1515,30 @@ printf("\n duration: %d", duration);
 				if ( abs(manchester_sync - duration) <= 220) {
 					manchester_pulse_counter++;
 					manchester_duration += rawcode[rawlen];
-printf("\n m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
+printf("\n True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
 				} else {
 // Check if we found the deviating pulse after a series of consecutive pulses
+printf("\n False-  m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
 					if (manchester_pulse_counter > 24) {
 // Above threshold, so we can now calculate the header/footer value
 // we do need to check if we are at the start or at the end, in order to determine the rawlen parameter.
 // In order to get a reliable rawlen value, it is the value defined by the
 						if (manchester_state == 0) {
 // at the start
+printf ("\n Start header found.");
 							manchester_state = 1;
 							manchester_duration = 0;
 							manchester_pulse_counter = 0;
 							rawlen = 0;
 							rawcode[rawlen] = duration;
 						} else {
+printf ("\n 2nd header found. Stop Hand over");
 							rawlen = manchester_pulse_counter;
 							duration = manchester_duration;
 						}
 					} else {
 // Below threshold, so we have to reset and will continue to check
+printf (" Reset.");
 						rawlen = 0;
 						manchester_duration = 0;
 						manchester_pulse_counter = 0;
@@ -1550,11 +1554,13 @@ printf("\n m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manche
 					manchester_state = 0;
 				}
 				if(duration > 5100) {
+printf (" ****->");
 					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
 						plslen = duration/PULSE_DIV;
 					}
 					/* Let's do a little filtering here as well */
 					if(rawlen >= minrawlen && rawlen <= maxrawlen) {
+printf (" Processing.\n");
 						receive_queue(rawcode, rawlen, plslen, hw->type);
 					}
 					rawlen = 0;
