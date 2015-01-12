@@ -1528,7 +1528,6 @@ printf("\n False-  m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d"
 printf ("\n Start header found.");
 							manchester_state = 1;
 							manchester_duration = 0;
-							manchester_pulse_counter = 0;
 							rawlen = 0;
 							rawcode[rawlen] = duration;
 						} else {

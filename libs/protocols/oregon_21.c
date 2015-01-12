@@ -46,6 +46,9 @@ Change Log:
 #define PULSE_OREGON_21_LONG_L          PULSE_OREGON_21_LONG-288 // 688 min
 #define PULSE_OREGON_21_LONG_H          PULSE_OREGON_21_LONG+432 // 1408 max
 #define PULSE_OREGON_21_FOOTER          324     // GAP 11000/34
+#define PULSE_OREGON_21_FOOTER_1        958     // GAP 32949/34-340
+#define PULSE_OREGON_21_FOOTER_2        969     // GAP 32949/34
+#define PULSE_OREGON_21_FOOTER_3        980     // GAP 32949/34+340
 #define PULSE_OREGON_21_FOOTER_L        (PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H        (PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -81,7 +84,7 @@ static void OREGON_21WeatherCreateMessage(int device_id, int id, int unit, int b
 static void OREGON_21WeatherParseCode(void) {
         int i, x, s_0;
         int pBin = 0, pRaw = 0;
-        int protocol_sync = 0;
+        int protocol_sync = 1;
         int rDataLow = 0, rDataTime = 0;
         int sign;
         int device_id = -1;
@@ -357,7 +360,10 @@ __attribute__((weak))
 void OREGON_21WeatherInit(void) {
         protocol_register(&OREGON_21);
         protocol_set_id(OREGON_21, "oregon_21");
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER); // Footer length ratio: (11000/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11000/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_1); // Footer length ratio: (32949/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_2); // Footer length ratio: (32949/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_3); // Footer length ratio: (32949/PULSE_DIV)
 	// *** add additional footer length here
         // protocol_plslen_add(OREGON_21, nnn); 	// Footer length value nnn=(Footer Length in µS)/34
         OREGON_21->devtype = SENSOR;
