@@ -1465,17 +1465,20 @@ void *receive_code(void *param) {
 	int rawcode[MAXPULSESTREAMLENGTH] = {0};
 	int duration = 0;
 
+#define WAIT_FOR_END_OF_HEADER          0
+#define WAIT_FOR_END_OF_DATA            1
+#define WAIT_FOR_END_OF_DATA_2          4
+#define WAIT_FOR_END_OF_DATA_3          5
+// #define PRINT_DEBUG_21
+
+#ifdef PRINT_DEBUG_21
 int i_loop;
+#endif
 int preamb_pulse_counter = 0;
 int latch_duration = 0, l_footer = 0;
 int preamb_duration = 0;
 int preamb_state = 0;
 int preamb_sync = 976;  // V2.1 - clk = 1024 Hz
-
-#define WAIT_FOR_END_OF_HEADER          0
-#define WAIT_FOR_END_OF_DATA            1
-#define WAIT_FOR_END_OF_DATA_2          4
-#define WAIT_FOR_END_OF_DATA_3          5
 
 	struct timeval tp;
 	struct timespec ts;
@@ -1511,34 +1514,60 @@ int preamb_sync = 976;  // V2.1 - clk = 1024 Hz
 
 			if(duration > 0) {
 				rawcode[rawlen] = duration;
-// --------------------
-// Sample stream
-// Analyse stream for repetitive pulses
-// They are uncommon in regular header/footer based streams
-// oregon21: either 16, 24, 32
+// --------------------------------------------------------------------------------------------------------------------
+// Convert RAW STREAM into compatible pilight format
+// Support for header/sync detection:
+// oregon21: length 36: minimum length we want to receive is 35 (35 clock duration pulses)
+//           SYNC is coded as 10101010 and handled by the protocol itself (footer 11018, 31232)
+// Planned to be added support for
+// oregon30: length 24: mimimum length we want to receive is 23 (46 half clock duration pulses)
+//           SYNC is coded as 0101 and handled ny the protocol itself (footer 23424)
+// Maybe:
+// oregon10: length 12: minimum length we want to receive is 11 (22 half clock duration pulses)
+//           SYNC is coded as three pulses and handled by the protocol itself (footer 35088)
+// Analyse stream for repetitive pulses with half the duration of the clock frequency 2924µS for V1.0
+// Analyse stream for repetitive pulses with the duration of the clock frequency 976µS for V2.1
+// Analyse stream for repetitive pulses with half the duration of the clock frequency 976µS for V3.0
+//  - they are in V2.1 members of the Pre-Amb sequence
+//  - they are uncommon in regular header/footer based streams and other protocols
+//  -> Other protocols will never get beyhond the WAIT_FOR_END_OF_HEADER state
+//
+// oregon_space: 9000µS footer pulses: 500/2000 - ONE, 500/4000 - ZERO
+// This protocol dies not require modification in daemon.c
+//  - devices: SL-109H, AcuRite 09955
 // Marker criteria is the first deviating pulse:
 // - distance of pulses between marker is rawlen of pulse stream
 // - duration of repetitive pulses is footer
-// As pilight will only accept footer values that do not deviate by more than -/+170µS we use that parameter here as well
-
+// As pilight will only accept footer values that do not deviate by more than -/+170µS the protocol driver has to
+// cover an extended footer value range (two additional protocol_plslen_add function calls with a difference of +/- 11)
+// 15/01/15
+// --------------------------------------------------------------------------------------------------------------------
                                 switch (preamb_state) {
                                         case WAIT_FOR_END_OF_HEADER:
-                                        if ( abs(preamb_sync - duration) <= 220) {
+                                        if ( abs(preamb_sync - duration) <= 220) {	// Check for pulses with clock duration
                                                 preamb_pulse_counter++;
                                                 preamb_duration += rawcode[rawlen];
+#ifdef PRINT_DEBUG_21
 printf("\n WFH-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#endif
                                         } else {
 // Check if we found the deviating pulse after a series of consecutive pulses
+#ifdef PRINT_DEBUG_21
 printf("\n WFH-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
-                                                if (preamb_pulse_counter > 24) {
+#endif
+                                                if (preamb_pulse_counter > 34) {
+#ifdef PRINT_DEBUG_21
 printf ("\n WFH->WFD.\n");
+#endif
                                                         preamb_state = WAIT_FOR_END_OF_DATA;
                                                         preamb_pulse_counter = 0;
                                                         rawlen = 0;                     // Reset Pointer
                                                         rawcode[rawlen] = duration;     // Re-store the 1st SYNC pulse
                                                 } else {
 // Below threshold, so we have to reset and will continue to check
+#ifdef PRINT_DEBUG_21
 printf ("\n WFH-Reset.");
+#endif
                                                         rawlen = 0;
                                                         preamb_duration = 0;
                                                         preamb_pulse_counter = 0;
@@ -1546,7 +1575,9 @@ printf ("\n WFH-Reset.");
                                         }
                                         break;
                                         case WAIT_FOR_END_OF_DATA_2:
+#ifdef PRINT_DEBUG_21
 printf ("WFD2-");
+#endif
                                                 rawlen = 0;
                                                 preamb_pulse_counter = 1;
                                                 rawcode[rawlen++] = latch_duration; // Restore 1st SYNC byte from previous loop
@@ -1558,12 +1589,18 @@ printf ("WFD2-");
                                         if ( abs(preamb_sync - duration) <= 220) {
                                                 preamb_pulse_counter++;
                                                 preamb_duration += rawcode[rawlen];
+#ifdef PRINT_DEBUG_21
 printf("\n WFD-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#endif
                                         } else {
 // Check if we found the deviating pulse after a series of consecutive pulses
+#ifdef PRINT_DEBUG_21
 printf("\n WFD-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#endif
                                                 if (preamb_pulse_counter > 24) {
+#ifdef PRINT_DEBUG_21
 printf ("\n WFD->WFE.\n");
+#endif
                                                                 latch_duration = duration;         // Remember this pulse
                                                                 rawcode[rawlen] = preamb_duration; // Emulate Footer
                                                                 duration = preamb_duration;
@@ -1572,7 +1609,9 @@ printf ("\n WFD->WFE.\n");
                                                                 preamb_state = WAIT_FOR_END_OF_DATA_2;
                                                 } else {
 // Below threshold, so we continue to wait
+#ifdef PRINT_DEBUG_21
 printf (" WFD-Wait.");
+#endif
                                                         preamb_duration = 0;
                                                         preamb_pulse_counter = 0;
                                                 }
@@ -1598,20 +1637,26 @@ printf (" WFD-Wait.");
                                         preamb_state = WAIT_FOR_END_OF_HEADER;
                                 }
                                 if(duration > 5100) {
+#ifdef PRINT_DEBUG_21
 printf (" ****->");
+#endif
 					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
 						plslen = duration/PULSE_DIV;
 					}
 					/* Let's do a little filtering here as well */
 					if(rawlen >= minrawlen && rawlen <= maxrawlen) {
+#ifdef PRINT_DEBUG_21
 printf (" Processing.\n");
+#endif
 						receive_queue(rawcode, rawlen, plslen, hw->type);
 					}
+#ifdef PRINT_DEBUG_21
 printf("\n rawlen %d plslen %d \n rawcode :", rawlen, plslen);
 for (i_loop=0;i_loop<=rawlen;i_loop++) {
         printf(" %d",rawcode[i_loop]);
 }
 printf("\n");
+#endif
                                         rawlen = 0;
                                         preamb_duration = 0;
                                         preamb_pulse_counter = 0;
