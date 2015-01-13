@@ -33,12 +33,15 @@
 #include "log.h"
 #include "options.h"
 #include "firmware.h"
+#include "wiringX.h"
 
 int main(int argc, char **argv) {
 
 	log_shell_enable();
 	log_file_disable();
 	log_level_set(LOG_DEBUG);
+
+	wiringXLog = logprintf;
 
 	struct options_t *options = NULL;
 	char *configtmp = malloc(strlen(CONFIG_FILE)+1);
