@@ -1464,11 +1464,18 @@ void *receive_code(void *param) {
 	int plslen = 0, rawlen = 0;
 	int rawcode[MAXPULSESTREAMLENGTH] = {0};
 	int duration = 0;
-int manchester_rawlen = 0;
-int manchester_pulse_counter = 0;
-int manchester_duration = 0;
-int manchester_state = 0;
-int manchester_sync = 976;
+
+int i_loop;
+int preamb_pulse_counter = 0;
+int latch_duration = 0, l_footer = 0;
+int preamb_duration = 0;
+int preamb_state = 0;
+int preamb_sync = 976;  // V2.1 - clk = 1024 Hz
+
+#define WAIT_FOR_END_OF_HEADER          0
+#define WAIT_FOR_END_OF_DATA            1
+#define WAIT_FOR_END_OF_DATA_2          4
+#define WAIT_FOR_END_OF_DATA_3          5
 
 	struct timeval tp;
 	struct timespec ts;
@@ -1504,7 +1511,7 @@ int manchester_sync = 976;
 
 			if(duration > 0) {
 				rawcode[rawlen] = duration;
-printf("\n duration: %d", duration);
+// --------------------
 // Sample stream
 // Analyse stream for repetitive pulses
 // They are uncommon in regular header/footer based streams
@@ -1513,47 +1520,84 @@ printf("\n duration: %d", duration);
 // - distance of pulses between marker is rawlen of pulse stream
 // - duration of repetitive pulses is footer
 // As pilight will only accept footer values that do not deviate by more than -/+170µS we use that parameter here as well
-				if ( abs(manchester_sync - duration) <= 220) {
-					manchester_pulse_counter++;
-					manchester_duration += rawcode[rawlen];
-printf("\n True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
-				} else {
-// Check if we found the deviating pulse after a series of consecutive pulses
-printf("\n False-  m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", manchester_state, manchester_duration, manchester_pulse_counter, manchester_state, rawlen);
-					if (manchester_pulse_counter > 24) {
-// Above threshold, so we can now calculate the header/footer value
-// we do need to check if we are at the start or at the end, in order to determine the rawlen parameter.
-// In order to get a reliable rawlen value, it is the value defined by the
-						if (manchester_state == 0) {
-// at the start
-printf ("\n Start header found.");
-							manchester_state = 1;
-							manchester_duration = 0;
-							rawlen = 0;
-							rawcode[rawlen] = duration;
-						} else {
-printf ("\n 2nd header found. Stop Hand over");
-							rawlen = manchester_pulse_counter;
-							duration = manchester_duration;
-						}
-					} else {
-// Below threshold, so we have to reset and will continue to check
-printf (" Reset.");
-						rawlen = 0;
-						manchester_duration = 0;
-						manchester_pulse_counter = 0;
-					}
-				}
-				rawlen++;
 
+                                switch (preamb_state) {
+                                        case WAIT_FOR_END_OF_HEADER:
+                                        if ( abs(preamb_sync - duration) <= 220) {
+                                                preamb_pulse_counter++;
+                                                preamb_duration += rawcode[rawlen];
+printf("\n WFH-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+                                        } else {
+// Check if we found the deviating pulse after a series of consecutive pulses
+printf("\n WFH-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+                                                if (preamb_pulse_counter > 24) {
+printf ("\n WFH->WFD.\n");
+                                                        preamb_state = WAIT_FOR_END_OF_DATA;
+                                                        preamb_pulse_counter = 0;
+                                                        rawlen = 0;                     // Reset Pointer
+                                                        rawcode[rawlen] = duration;     // Re-store the 1st SYNC pulse
+                                                } else {
+// Below threshold, so we have to reset and will continue to check
+printf ("\n WFH-Reset.");
+                                                        rawlen = 0;
+                                                        preamb_duration = 0;
+                                                        preamb_pulse_counter = 0;
+                                                }
+                                        }
+                                        break;
+                                        case WAIT_FOR_END_OF_DATA_2:
+printf ("WFD2-");
+                                                rawlen = 0;
+                                                preamb_pulse_counter = 1;
+                                                rawcode[rawlen++] = latch_duration; // Restore 1st SYNC byte from previous loop
+                                                if (duration > l_footer) duration = l_footer;
+                                                rawcode[rawlen]   = duration;
+                                                preamb_state = WAIT_FOR_END_OF_DATA_3;
+                                        break;
+                                        case WAIT_FOR_END_OF_DATA:
+                                        if ( abs(preamb_sync - duration) <= 220) {
+                                                preamb_pulse_counter++;
+                                                preamb_duration += rawcode[rawlen];
+printf("\n WFD-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+                                        } else {
+// Check if we found the deviating pulse after a series of consecutive pulses
+printf("\n WFD-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+                                                if (preamb_pulse_counter > 24) {
+printf ("\n WFD->WFE.\n");
+                                                                latch_duration = duration;         // Remember this pulse
+                                                                rawcode[rawlen] = preamb_duration; // Emulate Footer
+                                                                duration = preamb_duration;
+                                                                l_footer = preamb_duration;
+                                                                rawcode[rawlen] = preamb_duration; // Emulate Footer
+                                                                preamb_state = WAIT_FOR_END_OF_DATA_2;
+                                                } else {
+// Below threshold, so we continue to wait
+printf (" WFD-Wait.");
+                                                        preamb_duration = 0;
+                                                        preamb_pulse_counter = 0;
+                                                }
+                                        }
+                                        break;
+                                        case WAIT_FOR_END_OF_DATA_3:
+                                        if ( duration > 5100) {
+                                                preamb_state = WAIT_FOR_END_OF_HEADER;
+                                                duration = l_footer;    // Replace GAP with defined footer value
+                                                if (duration > l_footer) duration = l_footer;
+                                                rawcode[rawlen]   = duration;
+                                        }
+                                        break;
+
+                                        default:
+                                        break;
+                                }
+                                rawlen++;
 				if(rawlen > MAXPULSESTREAMLENGTH-1) {
-					rawlen = 0;
-					manchester_duration = 0;
-					manchester_rawlen = 0;
-					manchester_pulse_counter = 0;
-					manchester_state = 0;
-				}
-				if(duration > 5100) {
+                                        rawlen = 0;
+                                        preamb_duration = 0;
+                                        preamb_pulse_counter = 0;
+                                        preamb_state = WAIT_FOR_END_OF_HEADER;
+                                }
+                                if(duration > 5100) {
 printf (" ****->");
 					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
 						plslen = duration/PULSE_DIV;
@@ -1563,13 +1607,19 @@ printf (" ****->");
 printf (" Processing.\n");
 						receive_queue(rawcode, rawlen, plslen, hw->type);
 					}
-					rawlen = 0;
-					manchester_duration = 0;
-					manchester_rawlen = 0;
-					manchester_pulse_counter = 0;
-					manchester_state = 0;
-				}
-			/* Hardware failure */
+printf("\n rawlen %d plslen %d \n rawcode :", rawlen, plslen);
+for (i_loop=0;i_loop<=rawlen;i_loop++) {
+        printf(" %d",rawcode[i_loop]);
+}
+printf("\n");
+                                        rawlen = 0;
+                                        preamb_duration = 0;
+                                        preamb_pulse_counter = 0;
+                                        if (preamb_state == WAIT_FOR_END_OF_DATA) {
+                                                preamb_state = WAIT_FOR_END_OF_DATA_2;
+                                        }
+                                } // If
+                        /* Hardware failure */
 			} else if(duration == -1) {
 				pthread_mutex_unlock(&receive_lock);
 				gettimeofday(&tp, NULL);
