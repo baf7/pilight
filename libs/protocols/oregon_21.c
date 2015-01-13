@@ -45,10 +45,12 @@ Change Log:
 #define PULSE_OREGON_21_LONG            976     // OREGON_21 Docu long pulse duration
 #define PULSE_OREGON_21_LONG_L          PULSE_OREGON_21_LONG-288 // 688 min
 #define PULSE_OREGON_21_LONG_H          PULSE_OREGON_21_LONG+432 // 1408 max
-#define PULSE_OREGON_21_FOOTER          324     // GAP 11000/34
-#define PULSE_OREGON_21_FOOTER_1        958     // GAP 32949/34-340
-#define PULSE_OREGON_21_FOOTER_2        969     // GAP 32949/34
-#define PULSE_OREGON_21_FOOTER_3        980     // GAP 32949/34+340
+#define PULSE_OREGON_21_FOOTER          324     // GAP 11018/34
+#define PULSE_OREGON_21_FOOTER_1        908     // GAP min 30668 (908-5)*34
+#define PULSE_OREGON_21_FOOTER_2        919     // GAP 31246
+#define PULSE_OREGON_21_FOOTER_3        930     // GAP 31620
+#define PULSE_OREGON_21_FOOTER_4        941     // GAP 31994
+#define PULSE_OREGON_21_FOOTER_5        952     // GAP max 32538 (952+5)*34
 #define PULSE_OREGON_21_FOOTER_L        (PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H        (PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -58,10 +60,10 @@ Change Log:
 // rawlenmax: 32+12+(21*8+5*8)*2= 460
 #define BIN_ARRAY_CLASSIC               28                      // 28 - 16 is the Systemboundary
 #define BINLEN_OREGON_21_PROT           BIN_ARRAY_CLASSIC*8     // 128 is the systemboundary
-#define RAWLEN_OREGON_21_PROT           460                     // 255 is the systemboundary in the protocol_t structure
+#define RAWLEN_OREGON_21_PROT           428                     // 255 is the systemboundary in the protocol_t structure
 
-#define MINRAWLEN_OREGON_21_PROT        172     // all Data bit toogle
-#define MAXRAWLEN_OREGON_21_PROT        460     // all Data bit equal
+#define MINRAWLEN_OREGON_21_PROT        140     // all Data bit toogle
+#define MAXRAWLEN_OREGON_21_PROT        428     // all Data bit equal
 
 static void OREGON_21WeatherCreateMessage(int device_id, int id, int unit, int battery, int temp, int humidity,
                                           int uv, int wind_dir, int wind_speed, int wind_avg, int rain, int rain_total, int pressure) {
@@ -360,10 +362,12 @@ __attribute__((weak))
 void OREGON_21WeatherInit(void) {
         protocol_register(&OREGON_21);
         protocol_set_id(OREGON_21, "oregon_21");
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11000/PULSE_DIV)
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_1); // Footer length ratio: (32949/PULSE_DIV)
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_2); // Footer length ratio: (32949/PULSE_DIV)
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_3); // Footer length ratio: (32949/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11018/PULSE_DIV)
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_1); // Footer length ratio: 30668 - 32538
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_2); // Footer length ratio
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_3); // Footer length ratio
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_4); // Footer length ratio
+        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_5); // Footer length ratio
 	// *** add additional footer length here
         // protocol_plslen_add(OREGON_21, nnn); 	// Footer length value nnn=(Footer Length in µS)/34
         OREGON_21->devtype = SENSOR;
@@ -372,7 +376,7 @@ void OREGON_21WeatherInit(void) {
         OREGON_21->rawlen = RAWLEN_OREGON_21_PROT;      // dynamically depending on 1st or repeated frame and binary value of 1st bit
         OREGON_21->minrawlen = MINRAWLEN_OREGON_21_PROT;
         OREGON_21->maxrawlen = MAXRAWLEN_OREGON_21_PROT;
-        // Hardware Sync: 32 LONG + 4 SYNC (S.S.L)
+        // Hardware Sync: 4 SYNC (S.S.L)
         // START SL 1st Data bit=1 or LL 1st Data bit=0
         OREGON_21->binlen = BINLEN_OREGON_21_PROT;
 

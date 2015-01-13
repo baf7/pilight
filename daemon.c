@@ -1474,6 +1474,7 @@ void *receive_code(void *param) {
 #ifdef PRINT_DEBUG_21
 int i_loop;
 #endif
+
 int preamb_pulse_counter = 0;
 int latch_duration = 0, l_footer = 0;
 int preamb_duration = 0;
@@ -1555,7 +1556,7 @@ printf("\n WFH-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen 
 #ifdef PRINT_DEBUG_21
 printf("\n WFH-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
-                                                if (preamb_pulse_counter > 34) {
+                                                if (preamb_pulse_counter > 30) {
 #ifdef PRINT_DEBUG_21
 printf ("\n WFH->WFD.\n");
 #endif
@@ -1568,7 +1569,6 @@ printf ("\n WFH->WFD.\n");
 #ifdef PRINT_DEBUG_21
 printf ("\n WFH-Reset.");
 #endif
-                                                        rawlen = 0;
                                                         preamb_duration = 0;
                                                         preamb_pulse_counter = 0;
                                                 }
@@ -1586,6 +1586,9 @@ printf ("WFD2-");
                                                 preamb_state = WAIT_FOR_END_OF_DATA_3;
                                         break;
                                         case WAIT_FOR_END_OF_DATA:
+                                        if ( duration > 5100) {				// Regular GAP detected search for Header
+                                                preamb_state = WAIT_FOR_END_OF_HEADER;
+					}
                                         if ( abs(preamb_sync - duration) <= 220) {
                                                 preamb_pulse_counter++;
                                                 preamb_duration += rawcode[rawlen];
@@ -1597,7 +1600,7 @@ printf("\n WFD-True - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen 
 #ifdef PRINT_DEBUG_21
 printf("\n WFD-False- m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
-                                                if (preamb_pulse_counter > 24) {
+                                                if (preamb_pulse_counter > 30) {
 #ifdef PRINT_DEBUG_21
 printf ("\n WFD->WFE.\n");
 #endif
@@ -1605,7 +1608,6 @@ printf ("\n WFD->WFE.\n");
                                                                 rawcode[rawlen] = preamb_duration; // Emulate Footer
                                                                 duration = preamb_duration;
                                                                 l_footer = preamb_duration;
-                                                                rawcode[rawlen] = preamb_duration; // Emulate Footer
                                                                 preamb_state = WAIT_FOR_END_OF_DATA_2;
                                                 } else {
 // Below threshold, so we continue to wait
