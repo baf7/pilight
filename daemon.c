@@ -1471,7 +1471,7 @@ void *receive_code(void *param) {
 #define WAIT_FOR_END_OF_DATA_3          5
 #define PREAMB_SYNC                     976   // V2.1 - clk = 1024 Hz
 #define O21_FOOTER			11018 // GAP pulse Oregon V2.1
-#define PRE_AMB_HEADER_CNT		24
+#define PRE_AMB_HEADER_CNT		22
 
 #define PRINT_DEBUG_21
 #ifdef PRINT_DEBUG_21
