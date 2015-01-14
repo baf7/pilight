@@ -412,7 +412,7 @@ void compatibility(struct module_t *module) {
 }
 
 void init(void) {
-        OREGON_21WeatherInit();
+        oregon_21WeatherInit();
 }
 #endif
 
