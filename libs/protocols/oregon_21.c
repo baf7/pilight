@@ -354,7 +354,7 @@ static void OREGON_21WeatherParseCode(void) {
 __attribute__((weak))
 #endif
 
-void OREGON_21WeatherInit(void) {
+void oregon_21WeatherInit(void) {
         protocol_register(&OREGON_21);
         protocol_set_id(OREGON_21, "oregon_21");
         protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11018/PULSE_DIV)
