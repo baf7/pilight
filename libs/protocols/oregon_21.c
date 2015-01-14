@@ -46,11 +46,6 @@ Change Log:
 #define PULSE_OREGON_21_LONG_L          PULSE_OREGON_21_LONG-288 // 688 min
 #define PULSE_OREGON_21_LONG_H          PULSE_OREGON_21_LONG+432 // 1408 max
 #define PULSE_OREGON_21_FOOTER          324     // GAP 11018/34
-#define PULSE_OREGON_21_FOOTER_1        908     // GAP min 30668 (908-5)*34
-#define PULSE_OREGON_21_FOOTER_2        919     // GAP 31246
-#define PULSE_OREGON_21_FOOTER_3        930     // GAP 31620
-#define PULSE_OREGON_21_FOOTER_4        941     // GAP 31994
-#define PULSE_OREGON_21_FOOTER_5        952     // GAP max 32538 (952+5)*34
 #define PULSE_OREGON_21_FOOTER_L        (PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H        (PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -363,11 +358,6 @@ void OREGON_21WeatherInit(void) {
         protocol_register(&OREGON_21);
         protocol_set_id(OREGON_21, "oregon_21");
         protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11018/PULSE_DIV)
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_1); // Footer length ratio: 30668 - 32538
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_2); // Footer length ratio
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_3); // Footer length ratio
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_4); // Footer length ratio
-        protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER_5); // Footer length ratio
 	// *** add additional footer length here
         // protocol_plslen_add(OREGON_21, nnn); 	// Footer length value nnn=(Footer Length in µS)/34
         OREGON_21->devtype = SENSOR;
@@ -406,13 +396,13 @@ void OREGON_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
         module->name =  "oregon_21";
-        module->version =  "1.00";
+        module->version =  "1.01";
         module->reqversion =  "5.0";
         module->reqcommit =  NULL;
 }
 
 void init(void) {
-        OREGON_21WeatherInit();
+        oregon_21WeatherInit();
 }
 #endif
 
