@@ -1472,8 +1472,8 @@ void *receive_code(void *param) {
 #define PREAMB_SYNC                     976   // V2.1 - clk = 1024 Hz
 #define O21_FOOTER			11018 // GAP pulse Oregon V2.1
 #define PRE_AMB_HEADER_CNT		22
+// #define PRINT_DEBUG_21
 
-#define PRINT_DEBUG_21
 #ifdef PRINT_DEBUG_21
 int i_loop;
 #endif
@@ -1632,7 +1632,7 @@ fprintf (stderr,"WFD3 - ");
 #endif
                                         if ( duration > 5100) {
 #ifdef PRINT_DEBUG_21
-fprintf (stderr,"Replace footer with artifical footer. -> WFH");
+fprintf (stderr,"Replace footer %d with artifical footer. -> WFH",duration);
 #endif
                                                 preamb_state = WAIT_FOR_END_OF_HEADER;
                                                 duration = O21_FOOTER;    // Replace GAP with defined footer value
@@ -1661,12 +1661,12 @@ fprintf (stderr,"\n**** ->");
                                                 plslen = duration/PULSE_DIV;
                                         }
                                         /* Let's do a little filtering here as well */
-//                                        if(rawlen >= minrawlen && rawlen <= maxrawlen) {
+                                        if(rawlen >= minrawlen && rawlen <= maxrawlen) {
 #ifdef PRINT_DEBUG_21
 fprintf (stderr,"Queueing raw data for further processing.");
 #endif
-//                                                receive_queue(rawcode, rawlen, plslen, hw->type);
-//                                        }
+                                                receive_queue(rawcode, rawlen, plslen, hw->type);
+                                        }
 #ifdef PRINT_DEBUG_21
 fprintf(stderr," rawlen %d plslen %d \n**** rawcode: ", rawlen, plslen);
 for (i_loop=0;i_loop<=rawlen;i_loop++) {

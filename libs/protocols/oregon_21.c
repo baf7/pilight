@@ -35,6 +35,7 @@ Change Log:
 #include "gc.h"
 #include "oregon_21.h"
 
+// #define PRINT_DEBUG
 #define OREGON_21                       oregon_21Weather
 #define PULSE_OREGON_21_SYNC            976			  // 16 pairs Pre-Amble
 #define PULSE_OREGON_21_SYNC_L          PULSE_OREGON_21_SYNC-192  // 784 minimum
@@ -147,7 +148,9 @@ static void OREGON_21WeatherParseCode(void) {
                                         // Data pulse, No Toogle
                                 } else {
                                         // Protocol Error, there is no valid single short pulse
+#ifdef PRINT_DEBUG
                                         logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd short pulse");
+#endif
                                         protocol_sync = 96;
                                 }
                         } else {
@@ -156,7 +159,9 @@ static void OREGON_21WeatherParseCode(void) {
                                         rDataLow = -rDataLow;
                                 } else {
                                         // Protocol Error or footer, there is no long pulse
+#ifdef PRINT_DEBUG
                                         logprintf(LOG_DEBUG, "OREGON_21: Missing expected long Pulse. Check for footer condition");
+#endif
                                         protocol_sync = 3;
                                 }
                         }
@@ -176,7 +181,9 @@ static void OREGON_21WeatherParseCode(void) {
                                                 // Data pulse, No Toogle
                                         } else {
                                                 // Protocol Error, there is no single short pulse
+#ifdef PRINT_DEBUG
                                                 logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd inverted short pulse");
+#endif
                                                 protocol_sync = 96;
                                         }
                                 } else {
@@ -185,7 +192,9 @@ static void OREGON_21WeatherParseCode(void) {
                                                 rDataLow = - rDataLow;
                                         } else {
                                                 // Protocol Error, footer condition is detected before
+#ifdef PRINT_DEBUG
                                                 logprintf(LOG_DEBUG, "OREGON_21: Error missing inverted long pulse");
+#endif
                                                 protocol_sync = 96;
                                         }
                                 }
@@ -193,52 +202,72 @@ static void OREGON_21WeatherParseCode(void) {
                                         if (OREGON_21->binary[pBin]==1) {
                                                 OREGON_21->binary[pBin++]=0;
                                         } else {
+#ifdef PRINT_DEBUG
                                                 logprintf(LOG_DEBUG, "OREGON_21: Bit Error in pulse stream");
+#endif
                                                 protocol_sync = 96;
                                         }
                                 } else {
                                         if (OREGON_21->binary[pBin]==0) {
                                                 OREGON_21->binary[pBin++]=1;
                                         } else {
+#ifdef PRINT_DEBUG
                                                 logprintf(LOG_DEBUG, "OREGON_21: Bit Error in pulse stream");
+#endif
                                                 protocol_sync = 96;
                                         }
                                 }
                                 if (pBin>BINLEN_OREGON_21_PROT) {
+#ifdef PRINT_DEBUG
                                         logprintf(LOG_DEBUG, "OREGON_21: Too many binary bits decoded. Analysis abandoned");
+#endif
                                         protocol_sync = 96;
                                 }
                         }
                         break;
                         case 3:
                         // We found most probably a footer, check for footer pulse
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, --pRaw, --pBin);
+#endif
                         if ( (rDataTime > PULSE_OREGON_21_FOOTER_L) && (rDataTime < PULSE_OREGON_21_FOOTER_H) ) {
                                 protocol_sync = 98;
                         } else {
+#ifdef PRINT_DEBUG
                                 logprintf(LOG_DEBUG, "OREGON_21: Unknown Footer length");
+#endif
                                 protocol_sync = 96;
                         }
                         break;
                         case 95:
                         // We did not find a valid Pre-Amble
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "OREGON_21: No valid Pre-Amble data found.");
+#endif
                         case 96:
                         protocol_sync = 99;
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
+#endif
                         break;
                         case 97:
                         // We decoded a footer pulse without decoding the correct number of binary bits
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "OREGON_21: Err 97 unexpected EOF.");
+#endif
                         case 98:
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
+#endif
                         // We have reached the end of processing raw data
                         case 99:
                         default:
                         break;
                 }
                 if (protocol_sync > 95) {
+#ifdef PRINT_DEBUG
                         logprintf(LOG_DEBUG, "**** OREGON_21 RAW CODE ****");
+#endif
                         if(log_level_get() >= LOG_DEBUG) {
                                 for(x=0;x<pRaw;x++) {
                                         printf("%d ", OREGON_21->raw[x]);
@@ -336,7 +365,9 @@ static void OREGON_21WeatherParseCode(void) {
                 }
 
 
+#ifdef PRINT_DEBUG
                 logprintf(LOG_DEBUG, "**** OREGON_21 BIN CODE ****");
+#endif
                 if(log_level_get() >= LOG_DEBUG) {
                         printf("\n device: %d - id: %d - unit: %d - batt: %d - temp: %d - humi: %d - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
                         printf("\n wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d\n", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
@@ -345,8 +376,10 @@ static void OREGON_21WeatherParseCode(void) {
                 OREGON_21WeatherCreateMessage(device_id, id, unit, battery, temp, humidity, uv, wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
 
         } else {
+#ifdef PRINT_DEBUG
                 printf("\n*****-> protocol_sync: %d <-*****\n",protocol_sync);
                 logprintf(LOG_DEBUG, "OREGON_21 Parsecode Error");
+#endif
         }
 }
 
@@ -396,7 +429,7 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
         module->name =  "oregon_21";
-        module->version =  "1.01";
+        module->version =  "1.02";
         module->reqversion =  "5.0";
         module->reqcommit =  NULL;
 }
