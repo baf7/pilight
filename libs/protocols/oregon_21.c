@@ -35,7 +35,7 @@ Change Log:
 #include "gc.h"
 #include "oregon_21.h"
 
-// #define PRINT_DEBUG
+#define PRINT_DEBUG
 #define OREGON_21                       oregon_21Weather
 #define PULSE_OREGON_21_SYNC            976			  // 16 pairs Pre-Amble
 #define PULSE_OREGON_21_SYNC_L          PULSE_OREGON_21_SYNC-192  // 784 minimum
@@ -390,6 +390,7 @@ __attribute__((weak))
 void oregon_21WeatherInit(void) {
         protocol_register(&OREGON_21);
         protocol_set_id(OREGON_21, "oregon_21");
+        protocol_device_add(OREGON_21, "oregon_21", "Oregon v2.1 protocol sensors");
         protocol_plslen_add(OREGON_21, PULSE_OREGON_21_FOOTER);   // Footer length ratio: (11018/PULSE_DIV)
 	// *** add additional footer length here
         // protocol_plslen_add(OREGON_21, nnn); 	// Footer length value nnn=(Footer Length in µS)/34
@@ -406,22 +407,22 @@ void oregon_21WeatherInit(void) {
         options_add(&OREGON_21->options, 'd', "device_id", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$");
         options_add(&OREGON_21->options, 'u', "unit", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-9]{1,2}|1[0-9]{1,2}|2[0-4][0-9]|25[0-5])$");
         options_add(&OREGON_21->options, 'i', "id", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-4])$");
-        options_add(&OREGON_21->options, 'b', "battery", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-4])$");
+        options_add(&OREGON_21->options, 'b', "battery", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^([0-4])$");
 
-        options_add(&OREGON_21->options, 't', "temperature", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-        options_add(&OREGON_21->options, 'h', "humidity", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
-        options_add(&OREGON_21->options, 'v', "uv", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
-        options_add(&OREGON_21->options, 'w', "wind_dir", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-        options_add(&OREGON_21->options, 'j', "wind_speed", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-        options_add(&OREGON_21->options, 'k', "wind_avg", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-        options_add(&OREGON_21->options, 'l', "rain", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,4}$");
-        options_add(&OREGON_21->options, 'm', "rain_total", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
-        options_add(&OREGON_21->options, 'n', "pressure", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+        options_add(&OREGON_21->options, 't', "temperature", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+        options_add(&OREGON_21->options, 'h', "humidity", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
+        options_add(&OREGON_21->options, 'v', "uv", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
+        options_add(&OREGON_21->options, 'w', "wind_dir", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+        options_add(&OREGON_21->options, 'j', "wind_speed", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+        options_add(&OREGON_21->options, 'k', "wind_avg", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+        options_add(&OREGON_21->options, 'l', "rain", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,4}$");
+        options_add(&OREGON_21->options, 'm', "rain_total", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
+        options_add(&OREGON_21->options, 'n', "pressure", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 
-        options_add(&OREGON_21->options, 0, "decimals", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)2, "[0-9]");
-        options_add(&OREGON_21->options, 0, "readonly", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-        options_add(&OREGON_21->options, 0, "show-humidity", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
-        options_add(&OREGON_21->options, 0, "show-temperature", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
+        options_add(&OREGON_21->options, 0, "decimals", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "[0-9]");
+        options_add(&OREGON_21->options, 0, "readonly", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+        options_add(&OREGON_21->options, 0, "show-humidity", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
+        options_add(&OREGON_21->options, 0, "show-temperature", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 
         OREGON_21->parseCode=&OREGON_21WeatherParseCode;
 }
