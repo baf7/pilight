@@ -1546,133 +1546,134 @@ int duration_next = 0;
 // cover an extended footer value range (two additional protocol_plslen_add function calls with a difference of +/- 11)
 // 15/01/15
 // --------------------------------------------------------------------------------------------------------------------
-                                switch (preamb_state) {
-                                        case WAIT_FOR_END_OF_HEADER:
-                                        if ( abs(PREAMB_SYNC - duration) <= 220) {      // Check for pulses with clock duration
-                                                preamb_pulse_counter++;
-                                                preamb_duration += rawcode[rawlen];
+				switch (preamb_state) {
+					case WAIT_FOR_END_OF_HEADER:
+					if ( abs(PREAMB_SYNC - duration) <= 220) {      // Check for pulses with clock duration
+						preamb_pulse_counter++;
+						preamb_duration += rawcode[rawlen];
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\n    Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
-                                        } else {
+					} else {
 // Check if we found the deviating pulse after a series of consecutive pulses
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\n No Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
-                                                if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
+						if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
 #ifdef PRINT_DEBUG_21
 fprintf(stderr," - accepted SYNC found.\n");
 #endif
-                                                        preamb_state = WAIT_FOR_END_OF_DATA;
-                                                        preamb_pulse_counter = 0;
-                                                        rawlen = 0;                     // Reset Pointer
-                                                        rawcode[rawlen] = duration;     // Store the 1st SYNC pulse
-                                                } else {
+							preamb_state = WAIT_FOR_END_OF_DATA;
+							preamb_pulse_counter = 0;
+							rawlen = 0;                     // Reset Pointer
+							rawcode[rawlen] = duration;     // Store the 1st SYNC pulse
+						} else {
 // Below threshold, so we have to reset and will continue to check
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nNo Pre-Amble. pass data on.");
 #endif
-                                                        preamb_duration = 0;
-                                                        preamb_pulse_counter = 0;
-                                                }
-                                        }
-                                        break;
-                                        case WAIT_FOR_END_OF_DATA_2:
+							preamb_duration = 0;
+							preamb_pulse_counter = 0;
+						}
+					}
+					break;
+					case WAIT_FOR_END_OF_DATA_2:
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 #endif
-                                                rawlen = 0;				// Restore 1st SYNC byte already received
-                                                preamb_pulse_counter = 1;
-                                                rawcode[rawlen++] = latch_duration;
-                                                if (duration > O21_FOOTER) {		// A footer is a footer
-							duration = O21_FOOTER;
-                                                	rawcode[rawlen]   = duration;
-						} else {				// pilight may have missed significant number of pulses
-							// Resynchronize, lets get the next pulse as well
-							// as that value is random and needs be added to the previous pulse
-							// the deviation of that combined pulse value is expected to be below 25µS.
-							if (duration  > PREAMB_SYNC) {
-								pthread_mutex_unlock(&receive_lock);
-								duration_next = hw->receive();
-								pthread_mutex_lock(&receive_lock);
-								duration += duration_next;
-								latch_duration = 488;	// The next pulse is short
+					rawlen = 0;				// Restore 1st SYNC byte already received
+					preamb_pulse_counter = 1;
+					rawcode[rawlen++] = latch_duration;
+					if (duration > O21_FOOTER) {		// A footer is a footer
+						duration = O21_FOOTER;
+                                                rawcode[rawlen]   = duration;
+					} else {
+						// pilight may have missed significant number of pulses
+						// Resynchronize, lets get the next pulse as well
+						// as that value is random and needs be added to the previous pulse
+						// the deviation of that combined pulse value is expected to be below 25µS.
+						if (duration  > PREAMB_SYNC) {
+							pthread_mutex_unlock(&receive_lock);
+							duration_next = hw->receive();
+							pthread_mutex_lock(&receive_lock);
+							duration += duration_next;
+							latch_duration = 488;	// The next pulse is short
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							// Rebuild SYNC Header: 488, 976, 488 488 976 488 488 976
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 976;	// Next pulse is long (end of 1st SYNC)
+						}
+						// Rebuild SYNC Header: 488, 976, 488 488 976 488 488 976
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 976;	// Next pulse is long (end of 1st SYNC)
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 488;	// Next SYNC: S-S-L
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 488;	// Next SYNC: S-S-L
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 488;
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 488;
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 976;
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 976;
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 488;	// Next SYNC: S-S-L
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 488;	// Next SYNC: S-S-L
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 488;
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 488;
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  > PREAMB_SYNC) {
-								rawcode[++rawlen] = latch_duration;
-								duration -= latch_duration;
-								latch_duration = 976;	// We should never arrive here
+						}
+						if (duration  > PREAMB_SYNC) {
+							rawcode[++rawlen] = latch_duration;
+							duration -= latch_duration;
+							latch_duration = 976;	// We should never arrive here
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3S: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-							}
-							if (duration  <= PREAMB_SYNC) {
+						}
+						if (duration  <= PREAMB_SYNC) {
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD3E: r: %d - dl:%d dn:%d",rawlen, latch_duration, duration);
 #endif
-								if (duration > 600) {
+							if (duration > 600) {
+								rawcode[++rawlen] = duration;
+							} else {
+								if (duration > 200) {
 									rawcode[++rawlen] = duration;
-								} else {
-									if (duration > 200) {
-										rawcode[++rawlen] = duration;
-										rawcode[++rawlen] = duration;
-									}
+									rawcode[++rawlen] = duration;
 								}
 							}
-                                                preamb_state = WAIT_FOR_END_OF_DATA_3;
-                                        break;
+						}
+						preamb_state = WAIT_FOR_END_OF_DATA_3;
+					break;
                                         case WAIT_FOR_END_OF_DATA:
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD - ");
@@ -1728,7 +1729,7 @@ fprintf (stderr,"Replace footer %d with artifical footer. -> WFH",duration);
 
 					default:
 					break;
-				}
+				} Switch
 				rawlen++;
 				if(rawlen > MAXPULSESTREAMLENGTH-1) {
 #ifdef PRINT_DEBUG_21
@@ -1766,7 +1767,7 @@ fprintf(stderr,"\n");
 					if (preamb_state == WAIT_FOR_END_OF_DATA) {
 						preamb_state = WAIT_FOR_END_OF_DATA_2;
 					}
-				}
+				} // If duration > 0
 			/* Hardware failure */
 			} else if (duration == -1) {
 				pthread_mutex_unlock(&receive_lock);
@@ -1776,12 +1777,12 @@ fprintf(stderr,"\n");
 				ts.tv_sec += 1;
 				pthread_mutex_lock(&receive_lock);
 				pthread_cond_timedwait(&receive_signal, &receive_lock, &ts);
-			}
+			} // if HW->wait == 0
 			pthread_mutex_unlock(&receive_lock);
 		} else {
 			pthread_cond_wait(&receive_signal, &receive_lock);
 		}
-	}
+	} // while
 	return (void *)NULL;
 }
 
