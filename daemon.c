@@ -1490,6 +1490,7 @@ int preamb_state = 0;
 int duration_next = 0;
 int header_21[L_HEADER_21] = {PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H};
 int p_header_21 = 0;
+int flag_oregon_21 = 0;
 
 	struct timeval tp;
 	struct timespec ts;
@@ -1555,6 +1556,7 @@ int p_header_21 = 0;
 // --------------------------------------------------------------------------------------------------------------------
 				switch (preamb_state) {
 					case WAIT_FOR_END_OF_HEADER:
+						flag_oregon_21 = 0;
 						if ( duration > PREAMB_SYNC_MIN ) {      // Check for pulses with clock duration
 							preamb_pulse_counter++;
 							preamb_duration += rawcode[rawlen];
@@ -1570,6 +1572,7 @@ fprintf(stderr,"\n No Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt 
 #ifdef PRINT_DEBUG_21
 fprintf(stderr," - accepted SYNC found.\n");
 #endif
+								flag_oregon_21 = 1;		// flag for footer based protocols: 2nd transmission
 								preamb_state = WAIT_FOR_END_OF_DATA;
 								preamb_pulse_counter = 0;
 								rawlen = 0;                     // Reset Pointer
@@ -1638,6 +1641,10 @@ fprintf(stderr,"\nWFD - ");
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"Footer found: Reset the state machine.");
 #endif
+							if (flag_oregon_21 == 1) {		// 2nd footer is also oregon_21
+								duration = O21_FOOTER;
+								rawcode[rawlen]   = duration;
+							}
 							preamb_state = WAIT_FOR_END_OF_HEADER;
 						}
 						if ( duration > PREAMB_SYNC_MIN ) {
