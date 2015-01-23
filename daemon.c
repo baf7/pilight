@@ -748,7 +748,7 @@ void *send_code(void *param) {
 					}
 					printf("\n");
 				}
-				logprintf(LOG_DEBUG, "**** RAW CODE ****");
+				logprintf(LOG_DEBUG, "**** RAW CODE ****++++");
 				if(hw->send(sendqueue->code, protocol->rawlen, send_repeat*protocol->txrpt) == 0) {
 					logprintf(LOG_DEBUG, "successfully send %s code", protocol->id);
 					if(strcmp(protocol->id, "raw") == 0) {
@@ -1469,11 +1469,15 @@ void *receive_code(void *param) {
 #define WAIT_FOR_END_OF_DATA            1
 #define WAIT_FOR_END_OF_DATA_2          4
 #define WAIT_FOR_END_OF_DATA_3          5
-#define PREAMB_SYNC                     976   // V2.1 - clk = 1024 Hz
-#define O21_FOOTER			11018 // GAP pulse Oregon V2.1
+#define PREAMB_SYNC_L                   488	// V2.1 - clk = 1024 Hz
+#define PREAMB_SYNC_MIN			732
+#define PREAMB_SYNC_H                   976	// V2.1 - clk = 1024 Hz
+#define PREAMB_SYNC_MAX			1120	// A single value above this value is added to the next value
+#define PREAMB_SYNC_DMAX		PREAMB_SYNC_H+PREAMB_SYNC_L
+#define O21_FOOTER			11018	// GAP pulse Oregon V2.1
 #define PRE_AMB_HEADER_CNT		22
 #define L_HEADER_21			12
-// #define PRINT_DEBUG_21
+#define PRINT_DEBUG_21
 
 #ifdef PRINT_DEBUG_21
 int i_loop;
@@ -1484,7 +1488,7 @@ int latch_duration = 0;
 int preamb_duration = 0;
 int preamb_state = 0;
 int duration_next = 0;
-int header_21[L_HEADER_21] = {488,488,976,488,488,976,488,488,976,488,488,976};
+int header_21[L_HEADER_21] = {PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H};
 int p_header_21 = 0;
 
 	struct timeval tp;
@@ -1551,7 +1555,7 @@ int p_header_21 = 0;
 // --------------------------------------------------------------------------------------------------------------------
 				switch (preamb_state) {
 					case WAIT_FOR_END_OF_HEADER:
-						if ( abs(PREAMB_SYNC - duration) <= 220) {      // Check for pulses with clock duration
+						if ( duration > PREAMB_SYNC_MIN ) {      // Check for pulses with clock duration
 							preamb_pulse_counter++;
 							preamb_duration += rawcode[rawlen];
 #ifdef PRINT_DEBUG_21
@@ -1586,6 +1590,7 @@ fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 #endif
 						rawlen = 0;				// Restore 1st SYNC byte already received
 						preamb_pulse_counter = 1;
+						duration_next = 0;
 						rawcode[rawlen++] = latch_duration;
 						if (duration > O21_FOOTER) {		// A footer is a footer
 							duration = O21_FOOTER;
@@ -1597,7 +1602,7 @@ fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 							// both length together are close to absolute duration
 							// and based on our knowledge of the SYNC structure
 							// we can recreate the header pulse sequence
-							if (duration  > PREAMB_SYNC) {
+							if (duration  > PREAMB_SYNC_DMAX) {
 								pthread_mutex_unlock(&receive_lock);
 								duration_next = hw->receive();
 								pthread_mutex_lock(&receive_lock);
@@ -1612,11 +1617,13 @@ fprintf(stderr,"\nWFD3S: r: %d - dn:%d d:%d \nWFD3R: ",rawlen, duration_next, du
 								rawcode[rawlen++] = header_21[p_header_21];
 								duration -= header_21[p_header_21];
 #ifdef PRINT_DEBUG_21
-fprintf(stderr,"r: %d - d:%d - ppc: %d",rawlen, duration, preamb_pulse_counter);
+fprintf(stderr,"r: %d - d:%d - ppc: %d ",rawlen, duration, preamb_pulse_counter);
 #endif
 								preamb_pulse_counter++;
 								p_header_21++;
 							}
+							rawlen--; // Adjust pointer
+							preamb_pulse_counter--; // Adjust counter
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\n");
 #endif
@@ -1633,7 +1640,7 @@ fprintf(stderr,"Footer found: Reset the state machine.");
 #endif
 							preamb_state = WAIT_FOR_END_OF_HEADER;
 						}
-						if ( abs(PREAMB_SYNC - duration) <= 220) {
+						if ( duration > PREAMB_SYNC_MIN ) {
 							preamb_pulse_counter++;
 							preamb_duration += rawcode[rawlen];
 #ifdef PRINT_DEBUG_21

@@ -98,16 +98,39 @@ static void OREGON_21WeatherParseCode(void) {
         int rain = -1;
         int rain_total = -1;
         int pressure = -1;
+//
+// The duration of pulses depends on the state of RF
+// a,b,c
+// a - 0- off,  1- on
+// b - 0- min   1- max
+	int dur_short[2][2] = { {200, 680}, {200, 680} };
+	int dur_long[2][2] = { {681, 1408}, {681, 1408} };
+	int rf_state = 0; 			// 0 - off, 1- on
+//
 //      int cksum = 0;
-
+//
+#define PULSE_OREGON_21_SHORT_L         PULSE_OREGON_21_SHORT-268 // 220 min
+#define PULSE_OREGON_21_SHORT_H         PULSE_OREGON_21_SHORT+192 // 680 max
+#define PULSE_OREGON_21_LONG            976     // OREGON_21 Docu long pulse duration
+#define PULSE_OREGON_21_LONG_L          PULSE_OREGON_21_LONG-288 // 688 min
+#define PULSE_OREGON_21_LONG_H          PULSE_OREGON_21_LONG+432 // 1408 max
+#define PULSE_OREGON_21_FOOTER          324     // GAP 11018/34
+#define PULSE_OREGON_21_FOOTER_L        (PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
+#define PULSE_OREGON_21_FOOTER_H        (PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
+// Bin / Rawlength definitions
 // Decode Manchester pulse stream into binary
 // and remove all inverted bits
+//
         pRaw = 0;
         s_0 = 0;
+	rf_state = 0;
         for  (i=0;i<BINLEN_OREGON_21_PROT;i++) {
                 OREGON_21->binary[i]=0;
         }
-        while (pRaw<=OREGON_21->rawlen) {
+#ifdef PRINT_DEBUG
+	logprintf(LOG_DEBUG, "OREGON_21: Start decoding\n");
+#endif
+	while (pRaw<=OREGON_21->rawlen) {
                 switch (protocol_sync) {
                         case 0: // Wait for end of Pre-Amble pulses, or terminate if more than 36 Pre-Amble bits found
                         rDataTime = OREGON_21->raw[pRaw++];
@@ -117,14 +140,19 @@ static void OREGON_21WeatherParseCode(void) {
                                         protocol_sync = 95;
                                 }
                         }
-                        if( (rDataTime > PULSE_OREGON_21_SHORT_L) && (rDataTime < PULSE_OREGON_21_SHORT_H) ) {
+//			if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+			if( (rDataTime > PULSE_OREGON_21_SHORT_L) && (rDataTime < PULSE_OREGON_21_SHORT_H) ) {
                                 protocol_sync = 1;      // We found the first short pulse, indicating SYNC nibbles
                                 s_0 = 0;                // Reset Long Pulse counter, SYNC ends with the 4th long pulses
+				rf_state = 1;		// ON
                         }
                         break;
                         case 1: // The fourth long pulse defines the end of SYNC
                         rDataTime = OREGON_21->raw[pRaw++];
-                        if( (rDataTime > PULSE_OREGON_21_LONG_L) && (rDataTime < PULSE_OREGON_21_LONG_H) ) {
+			rf_state ^= 1;
+
+//			if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+			if( (rDataTime > PULSE_OREGON_21_LONG_L) && (rDataTime < PULSE_OREGON_21_LONG_H) ) {
                                 s_0++;                          // The 4th SYNC pulse is a logical "1"
                                 if (s_0 > 3) {                  // rDataLow 1-"0", -1-"1"
                                         protocol_sync = 2;
@@ -139,12 +167,17 @@ static void OREGON_21WeatherParseCode(void) {
                                 // We expect either two short pulses defining no change in bit state,
                                 // or we expect a long pulse, defining a bit toogle condition
                                 // The 1st bit is inverted, the 2nd bit is the noninverted state
+				// rf_state is on
                         rDataTime= OREGON_21->raw[pRaw++];
+			rf_state ^= 1;
                         // two short pulses define a bit with no logical state change
-                        if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+//			if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+			if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
                                 // No Data pulse yet, Sync only, there must be another Short pulse
                                 rDataTime=OREGON_21->raw[pRaw++];
-                                if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+				rf_state ^= 1;
+//				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+				if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
                                         // Data pulse, No Toogle
                                 } else {
                                         // Protocol Error, there is no valid single short pulse
@@ -154,7 +187,8 @@ static void OREGON_21WeatherParseCode(void) {
                                         protocol_sync = 96;
                                 }
                         } else {
-                                if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
+//				if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+				if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
                                         // Data pulse, Toogle
                                         rDataLow = -rDataLow;
                                 } else {
@@ -173,11 +207,15 @@ static void OREGON_21WeatherParseCode(void) {
                         if (protocol_sync == 2) {               // Continue only if no footer or error condition set
                                 // Get the 2nd bit and check if it is inverted
                                 rDataTime= OREGON_21->raw[pRaw++];
-                                // Short Pulse changes are neutral
-                                if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+        			rf_state ^= 1;
+	                        // Short Pulse changes are neutral
+//				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+				if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
                                         // No Data pulse yet, Sync only, there must be another Short pulse
                                         rDataTime=OREGON_21->raw[pRaw++];
-                                        if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+					rf_state ^= 1;
+                                		if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1])) {
+//						if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
                                                 // Data pulse, No Toogle
                                         } else {
                                                 // Protocol Error, there is no single short pulse
@@ -187,7 +225,8 @@ static void OREGON_21WeatherParseCode(void) {
                                                 protocol_sync = 96;
                                         }
                                 } else {
-                                        if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
+//					if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+					if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
                                                 // Data pulse, Toogle
                                                 rDataLow = - rDataLow;
                                         } else {

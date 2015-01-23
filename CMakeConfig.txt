@@ -1,5 +1,5 @@
 set(WEBSERVER ON CACHE BOOL "enable the built-in webserver")
-set(EVENTS ON CACHE BOOL "enable the eventing functionality")
+set(EVENTS OFF CACHE BOOL "enable the eventing functionality")
 set(FIRMWARE_UPDATER ON CACHE BOOL "auto update the pilight firmware")
 set(PROTOCOL_ALECTO_WS1700 ON CACHE BOOL "support for the Alecto WS1700 protocol")
 set(PROTOCOL_ALECTO_WSD17 ON CACHE BOOL "support for the Alecto WSD 17 protocol")
