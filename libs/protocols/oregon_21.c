@@ -103,8 +103,11 @@ static void OREGON_21WeatherParseCode(void) {
 // a,b,c
 // a - 0- off,  1- on
 // b - 0- min   1- max
-	int dur_short[2][2] = { {200, 680}, {200, 680} };
-	int dur_long[2][2] = { {681, 1408}, {681, 1408} };
+// #define VAR_PULSE
+#ifdef VAR_PULSE
+	int dur_short[2][2] = { {220, 680}, {220, 680} };
+	int dur_long[2][2] = { {688, 1408}, {688, 1408} };
+#endif
 	int rf_state = 0; 			// 0 - off, 1- on
 //
 //      int cksum = 0;
@@ -139,8 +142,12 @@ static void OREGON_21WeatherParseCode(void) {
 						protocol_sync = 95;
 					}
 				}
-//				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#ifdef VAR_PULSE
+				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 				if( (rDataTime > PULSE_OREGON_21_SHORT_L) && (rDataTime < PULSE_OREGON_21_SHORT_H) ) {
+#endif
 					protocol_sync = 1;				// We found the first short pulse, indicating SYNC nibbles
 					s_0 = 0;						// Reset Long Pulse counter, SYNC ends with the 4th long pulses
 					rf_state = 1;					// ON
@@ -150,8 +157,12 @@ static void OREGON_21WeatherParseCode(void) {
 				rDataTime = OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
 printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_0);
-//				if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#ifdef VAR_PULSE
+				if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 				if( (rDataTime > PULSE_OREGON_21_LONG_L) && (rDataTime < PULSE_OREGON_21_LONG_H) ) {
+#endif
 					s_0++;							// The 4th SYNC pulse is a logical "1"
 					if (s_0 > 3) {					// rDataLow 1-"0", -1-"1"
 						protocol_sync = 2;
@@ -171,13 +182,21 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 				rDataTime= OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
 				// two short pulses define a bit with no logical state change
-//				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#ifdef VAR_PULSE
+				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 				if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+#endif
 					// No Data pulse yet, Sync only, there must be another Short pulse
 					rDataTime=OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
-//					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#ifdef VAR_PULSE
+					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 					if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+#endif
 						// Data pulse, No Toogle
 					} else {
 						// Protocol Error, there is no valid single short pulse
@@ -187,8 +206,12 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 						protocol_sync = 96;
 					}
 				} else {
-//					if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#ifdef VAR_PULSE
+					if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 					if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
+#endif
 						// Data pulse, Toogle
 						rDataLow = -rDataLow;
 					} else {
@@ -209,13 +232,21 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 					rDataTime= OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
 					// Short Pulse changes are neutral
-//					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#ifdef VAR_PULSE
+					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 					if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+#endif
 						// No Data pulse yet, Sync only, there must be another Short pulse
 						rDataTime=OREGON_21->raw[pRaw++];
 						rf_state ^= 1;
-//							if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1])) {
+#ifdef VAR_PULSE
+							if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1])) {
+#endif
+#ifndef VAR_PULSE
 							if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
+#endif
 							// Data pulse, No Toogle
 						} else {
 							// Protocol Error, there is no single short pulse
@@ -225,8 +256,12 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 							protocol_sync = 96;
 						}
 					} else {
-//						if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#ifdef VAR_PULSE
+						if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
+#endif
+#ifndef VAR_PULSE
 						if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
+#endif
 							// Data pulse, Toogle
 							rDataLow = - rDataLow;
 						} else {
