@@ -98,7 +98,7 @@ static int alectoWSD17CheckValues(struct JsonNode *jvalues) {
 		}
 
 		if(!match) {
-			if(!(snode = malloc(sizeof(struct alecto_wsd17_settings_t)))) {
+			if(!(snode = MALLOC(sizeof(struct alecto_wsd17_settings_t)))) {
 				logprintf(LOG_ERR, "out of memory");
 				exit(EXIT_FAILURE);
 			}
@@ -118,9 +118,11 @@ static void alectoWSD17GC(void) {
 	while(alecto_wsd17_settings) {
 		tmp = alecto_wsd17_settings;
 		alecto_wsd17_settings = alecto_wsd17_settings->next;
-		sfree((void *)&tmp);
+		FREE(tmp);
 	}
-	sfree((void *)&alecto_wsd17_settings);
+	if(alecto_wsd17_settings != NULL) {
+		FREE(alecto_wsd17_settings);
+	}
 }
 
 #ifndef MODULE
@@ -142,10 +144,8 @@ void alectoWSD17Init(void) {
 
 	// options_add(&alecto_wsd17->options, 0, "decimals", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)1, "[0-9]");
 	options_add(&alecto_wsd17->options, 0, "decimals", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "[0-9]");
-	options_add(&alecto_wsd17->options, 0, "humidity-offset", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)0, "[0-9]");
-	options_add(&alecto_wsd17->options, 0, "show-humidity", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
+	options_add(&alecto_wsd17->options, 0, "temperature-offset", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)0, "[0-9]");
 	options_add(&alecto_wsd17->options, 0, "show-temperature", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
-	options_add(&alecto_wsd17->options, 0, "show-battery", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 
 	alecto_wsd17->parseCode=&alectoWSD17ParseCode;
 	alecto_wsd17->checkValues=&alectoWSD17CheckValues;
@@ -155,9 +155,9 @@ void alectoWSD17Init(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name = "alecto_wsd17";
-	module->version = "0.8";
+	module->version = "0.10";
 	module->reqversion = "5.0";
-	module->reqcommit = "84";
+	module->reqcommit = "187";
 }
 
 void init(void) {

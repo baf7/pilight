@@ -150,7 +150,7 @@ int ssdp_seek(struct ssdp_list_t **ssdp_list) {
 				pch = strtok(NULL, "\r\n");
 			}
 			if(match) {
-				struct ssdp_list_t *node = malloc(sizeof(struct ssdp_list_t));
+				struct ssdp_list_t *node = MALLOC(sizeof(struct ssdp_list_t));
 				if(!node) {
 					logprintf(LOG_ERR, "out of memory");
 					exit(EXIT_FAILURE);
@@ -169,16 +169,20 @@ end:
 	if(sock > 0) {
 		close(sock);
 	}
-    struct ssdp_list_t *ptr = *ssdp_list, *next = NULL, *prev = NULL;
-   	if(match) {
+	struct ssdp_list_t *ptr = *ssdp_list, *next = NULL, *prev = NULL;
+	if(match) {
 		while(ptr) {
 			next = ptr->next;
 			ptr->next = prev;
 			prev = ptr;
 			ptr = next;
 		}
-		sfree((void *)&ptr);
-		sfree((void *)&next);
+		if(ptr != NULL) {
+			FREE(ptr);
+		}
+		if(next != NULL) {
+			FREE(next);
+		}
 		*ssdp_list = prev;
 
 		return 0;
@@ -194,9 +198,11 @@ void ssdp_free(struct ssdp_list_t *ssdp_list) {
 	while(ssdp_list) {
 		tmp = ssdp_list;
 		ssdp_list = ssdp_list->next;
-		sfree((void *)&tmp);
+		FREE(tmp);
 	}
-	sfree((void *)&ssdp_list);
+	if(ssdp_list != NULL) {
+		FREE(ssdp_list);
+	}
 }
 
 void *ssdp_wait(void *param) {
@@ -257,11 +263,11 @@ void *ssdp_wait(void *param) {
 				exit(EXIT_FAILURE);
 			}
 			if(strlen(host) > 0) {
-				if(!(header = realloc(header, sizeof(char *)*((size_t)nrheader+1)))) {
+				if(!(header = REALLOC(header, sizeof(char *)*((size_t)nrheader+1)))) {
 					logprintf(LOG_ERR, "out of memory");
 					exit(EXIT_FAILURE);
 				}
-				if(!(header[nrheader] = malloc(BUFFER_SIZE))) {
+				if(!(header[nrheader] = MALLOC(BUFFER_SIZE))) {
 					logprintf(LOG_ERR, "out of memory");
 					exit(EXIT_FAILURE);
 				}
@@ -282,10 +288,10 @@ void *ssdp_wait(void *param) {
 	freeifaddrs(ifaddr);
 
 	if(id) {
-		sfree((void *)&id);
+		FREE(id);
 	}
-	sfree((void *)&distro);
-	sfree((void *)&hname);
+	FREE(distro);
+	FREE(hname);
 
 	while(ssdp_loop) {
 		memset(message, '\0', BUFFER_SIZE);
@@ -306,10 +312,10 @@ void *ssdp_wait(void *param) {
 	}
 
 	for(x=0;x<nrheader;x++) {
-		sfree((void *)&header[x]);
+		FREE(header[x]);
 	}
 
-	sfree((void *)&header);
+	FREE(header);
 	return 0;
 }
 

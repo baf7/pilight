@@ -30,11 +30,13 @@
 #include "gc.h"
 #include "json.h"
 #include "log.h"
+#include "mem.h"
 #include "devices.h"
 #include "common.h"
 #include "config.h"
 
 static unsigned short gc_enable = 1;
+static struct collectors_t *gc = NULL;
 
 void gc_handler(int sig) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
@@ -79,6 +81,13 @@ void gc_handler(int sig) {
 	}
 	if(((sig == SIGINT || sig == SIGTERM || sig == SIGTSTP) && gc_enable == 1) ||
 		(!(sig == SIGINT || sig == SIGTERM || sig == SIGTSTP) && gc_enable == 0)) {
+		if(sig == SIGINT) {
+			logprintf(LOG_DEBUG, "received interrupt signal, stopping pilight...");
+		} else if(sig == SIGTERM) {
+			logprintf(LOG_DEBUG, "received terminate signal, stopping pilight...");
+		} else {
+			logprintf(LOG_DEBUG, "received stop signal, stopping pilight...");
+		}
 		if(config_get_file() != NULL && gc_enable == 1) {
 			gc_enable = 0;
 			if(pilight.runmode == STANDALONE) {
@@ -86,7 +95,6 @@ void gc_handler(int sig) {
 			}
 		}
 		gc_enable = 0;
-		config_gc();
 		gc_run();
 	}
 }
@@ -95,8 +103,8 @@ void gc_handler(int sig) {
 void gc_attach(int (*fp)(void)) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	struct collectors_t *gnode = malloc(sizeof(struct collectors_t));
-	if(!gnode) {
+	struct collectors_t *gnode = MALLOC(sizeof(struct collectors_t));
+	if(gnode == NULL) {
 		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
@@ -108,13 +116,15 @@ void gc_attach(int (*fp)(void)) {
 void gc_clear(void) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	struct collectors_t *tmp = gc;
+	struct collectors_t *tmp;
 	while(gc) {
 		tmp = gc;
 		gc = gc->next;
-		sfree((void *)&tmp);
+		FREE(tmp);
 	}
-	sfree((void *)&gc);
+	if(gc != NULL) {
+		FREE(gc);
+	}
 }
 
 /* Run the GC manually */
@@ -130,18 +140,13 @@ int gc_run(void) {
 		}
 		tmp = tmp->next;
 	}
+	tmp = NULL;
 
-	while(gc) {
-		tmp = gc;
-		gc = gc->next;
-		sfree((void *)&tmp);
-	}
-	sfree((void *)&gc);
-
-	if(s)
+	if(s == 1) {
 		return EXIT_FAILURE;
-	else
+	} else {
 		return EXIT_SUCCESS;
+	}
 }
 
 /* Initialize the catch all gc */

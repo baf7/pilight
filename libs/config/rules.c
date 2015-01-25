@@ -71,8 +71,8 @@ static int rules_parse(JsonNode *root) {
 						have_error = 1;
 						break;
 					}
-					struct rules_t *node = malloc(sizeof(struct rules_t));
-					if(!node) {
+					struct rules_t *node = MALLOC(sizeof(struct rules_t));
+					if(node == NULL) {
 						logprintf(LOG_ERR, "out of memory");
 						exit(EXIT_FAILURE);
 					}
@@ -84,19 +84,25 @@ static int rules_parse(JsonNode *root) {
 					node->action = NULL;
 					node->arguments = NULL;
 					if(event_parse_rule(rule, node, 0, 1, 1) == -1) {
-						sfree((void *)&node);
+						for(i=0;i<node->nrdevices;i++) {
+							FREE(node->devices[i]);
+						}
+						if(node->devices != NULL) {
+							FREE(node->devices);
+						}
+						FREE(node);
 						have_error = 1;
 						break;
 					}
 					node->status = 0;
-					node->rule = malloc(strlen(rule)+1);
-					if(!node->rule) {
+					node->rule = MALLOC(strlen(rule)+1);
+					if(node->rule == NULL) {
 						logprintf(LOG_ERR, "out of memory");
 						exit(EXIT_FAILURE);
 					}
 					strcpy(node->rule, rule);
-					node->name = malloc(strlen(jrules->key)+1);
-					if(!node->name) {
+					node->name = MALLOC(strlen(jrules->key)+1);
+					if(node->name == NULL) {
 						logprintf(LOG_ERR, "out of memory");
 						exit(EXIT_FAILURE);
 					}
@@ -118,8 +124,8 @@ static int rules_parse(JsonNode *root) {
 			jrules = jrules->next;
 		}
 	} else {
-			logprintf(LOG_ERR, "config rules should be placed in an object");
-			have_error = 1;
+		logprintf(LOG_ERR, "config rules should be placed in an object");
+		have_error = 1;
 	}
 
 	return have_error;
@@ -175,28 +181,35 @@ int rules_gc(void) {
 
 	while(rules) {
 		tmp_rules = rules;
-		sfree((void *)&tmp_rules->name);
-		sfree((void *)&tmp_rules->rule);
+		FREE(tmp_rules->name);
+		FREE(tmp_rules->rule);
 		for(i=0;i<tmp_rules->nrdevices;i++) {
-			sfree((void *)&tmp_rules->devices[i]);
+			FREE(tmp_rules->devices[i]);
 		}
 		while(tmp_rules->values) {
 			tmp_values = tmp_rules->values;
-			sfree((void *)&tmp_values->name);
-			sfree((void *)&tmp_values->device);
+			FREE(tmp_values->name);
+			FREE(tmp_values->device);
 			tmp_rules->values = tmp_rules->values->next;
-			sfree((void *)&tmp_values);
+			FREE(tmp_values);
 		}
 		if(tmp_rules->arguments) {
 			json_delete(tmp_rules->arguments);
 		}
-		sfree((void *)&tmp_rules->values);
-		sfree((void *)&tmp_rules->devices);
+		if(tmp_rules->values != NULL) {
+			FREE(tmp_rules->values);
+		}
+		if(tmp_rules->devices != NULL) {
+			FREE(tmp_rules->devices);
+		}
 		rules = rules->next;
-		sfree((void *)&tmp_rules);
+		FREE(tmp_rules);
 	}
-	sfree((void *)&rules);
+	if(rules != NULL) {
+		FREE(rules);
+	}
 	rules = NULL;
+
 	logprintf(LOG_DEBUG, "garbage collected config rules library");
 	return 1;
 }

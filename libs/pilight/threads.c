@@ -27,6 +27,7 @@
 #include "threads.h"
 #include "common.h"
 #include "log.h"
+#include "mem.h"
 
 static unsigned short thread_loop = 1;
 static unsigned short thread_running = 0;
@@ -37,14 +38,14 @@ static pthread_mutexattr_t threadqueue_attr;
 
 static int threadqueue_number = 0;
 static struct threadqueue_t *threadqueue;
-static pthread_t *pthcpy = NULL;
+static pthread_t pth;
 
 struct threadqueue_t *threads_register(const char *id, void *(*function)(void *param), void *param, int force) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
 	pthread_mutex_lock(&threadqueue_lock);
 
-	struct threadqueue_t *tnode = malloc(sizeof(struct threadqueue_t));
+	struct threadqueue_t *tnode = MALLOC(sizeof(struct threadqueue_t));
 	if(!tnode) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
@@ -57,7 +58,7 @@ struct threadqueue_t *threads_register(const char *id, void *(*function)(void *p
 	tnode->function = function;
 	tnode->running = 0;
 	tnode->force = force;
-	tnode->id = malloc(strlen(id)+1);
+	tnode->id = MALLOC(strlen(id)+1);
 	if(!tnode->id) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
@@ -94,17 +95,16 @@ struct threadqueue_t *threads_register(const char *id, void *(*function)(void *p
 	return tnode;
 }
 
-void threads_create(pthread_t *pth, const pthread_attr_t *attr,  void *(*start_routine) (void *), void *arg) {
+void threads_create(pthread_t *thread, const pthread_attr_t *attr,  void *(*start_routine) (void *), void *arg) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	pthcpy = pth;
 	sigset_t new, old;
 	sigemptyset(&new);
 	sigaddset(&new, SIGINT);
 	sigaddset(&new, SIGQUIT);
 	sigaddset(&new, SIGTERM);
 	pthread_sigmask(SIG_BLOCK, &new, &old);
-	pthread_create(pth, attr, start_routine, arg);
+	pthread_create(thread, attr, start_routine, arg);
 	pthread_sigmask(SIG_SETMASK, &old, NULL);
 }
 
@@ -121,13 +121,8 @@ void thread_signal(char *id, int s) {
 	}
 }
 
-void *threads_start(void *param) {
+static void *threads_loop(void *param) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
-
-	pthread_mutexattr_init(&threadqueue_attr);
-	pthread_mutexattr_settype(&threadqueue_attr, PTHREAD_MUTEX_RECURSIVE);
-	pthread_mutex_init(&threadqueue_lock, &threadqueue_attr);
-	pthread_cond_init(&threadqueue_signal, NULL);
 
 	struct threadqueue_t *tmp_threads = NULL;
 
@@ -160,11 +155,24 @@ void *threads_start(void *param) {
 			pthread_cond_wait(&threadqueue_signal, &threadqueue_lock);
 		}
 	}
+	pthread_join(pthread_self(), NULL);
 	return (void *)NULL;
+}
+
+void threads_start() {
+	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
+
+	pthread_mutexattr_init(&threadqueue_attr);
+	pthread_mutexattr_settype(&threadqueue_attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&threadqueue_lock, &threadqueue_attr);
+	pthread_cond_init(&threadqueue_signal, NULL);
+
+	threads_create(&pth, NULL, &threads_loop, (void *)NULL);
 }
 
 void thread_stop(char *id) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
+	pthread_mutex_lock(&threadqueue_lock);
 
 	struct threadqueue_t *currP, *prevP;
 
@@ -193,12 +201,13 @@ void thread_stop(char *id) {
 				}
 			}
 
-			sfree((void *)&currP->id);
-			sfree((void *)&currP);
+			FREE(currP->id);
+			FREE(currP);
 
 			break;
 		}
 	}
+	pthread_mutex_unlock(&threadqueue_lock);
 }
 
 void threads_cpu_usage(int print) {
@@ -256,15 +265,14 @@ int threads_gc(void) {
 	struct threadqueue_t *ttmp = NULL;
 	while(threadqueue) {
 		ttmp = threadqueue;
-		sfree((void *)&ttmp->id);
+		FREE(ttmp->id);
 		threadqueue = threadqueue->next;
-		sfree((void *)&ttmp);
+		FREE(ttmp);
 	}
-	sfree((void *)&threadqueue);
+	if(threadqueue != NULL) {
+		FREE(threadqueue);
+	}
 
-	if(pthcpy != NULL) {
-		pthread_join(*pthcpy, NULL);
-	}
 	logprintf(LOG_DEBUG, "garbage collected threads library");
 	return EXIT_SUCCESS;
 }

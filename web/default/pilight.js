@@ -17,6 +17,7 @@ var sDateTimeFormat = "HH:mm:ss YYYY-MM-DD";
 var aDateTimeFormats = new Array();
 var aWebcamUrl = new Array();
 var userLang = navigator.language || navigator.userLanguage;
+var language;
 
 var language_en = {
 	off: "Off",
@@ -35,6 +36,23 @@ var language_en = {
 	unexpected_error: "An unexpected error occured"
 }
 
+var language_de = {
+    off: "Aus",
+    on: "Ein",
+    stopped: "Gestoppt",
+    started: "Gestartet",
+    toggling: "schaltend",
+    up: "+",
+    down: "-",
+    update: "Aktualisieren",
+    loading: "ladend",
+    available: "verfügbar",
+    connecting: "Verbindung wird aufgebaut",
+    connection_lost: "Verbindung verloren! Hier berühren, um die Seite neu zu laden.",
+    connection_failed: "Verbindung fehlgeschlagen! Hier berühren, um die Seite neu zu laden.",
+    unexpected_error: "Es ist ein unerwarteter Fehler aufgetreten."
+}
+
 var language_nl = {
 	off: "Uit",
 	on: "Aan",
@@ -51,10 +69,34 @@ var language_nl = {
 	unexpected_error: "An unexpected error occured"
 }
 
-var language = language_en;
+var language_fr = {
+	off: "Eteint",
+	on: "Allumé",
+	stopped: "Arrêté",
+	started: "Démarré",
+	toggling: "En cours",
+	up: "Haut",
+	down: "Bas",
+	update: "Mise à jour",
+	loading: "Chargement en cours",
+	available: "Disponible",
+	connecting: "Connexion en cours",
+	connection_lost: "Connexion perdue, appuyez pour recharger",
+	connection_failed: "Connexion impossible, appuyez pour réessayer",
+	unexpected_error: "Une erreur inattendue s'est produite"
+}
 
 if(userLang.indexOf('nl') != -1) {
 	language = language_nl;
+}
+else if(userLang.indexOf('de') != -1){
+	language = language_de;
+}
+else if(userLang.indexOf('fr') != -1){
+	language = language_fr;
+}
+else {
+	language = language_en;
 }
 
 function alphaNum(string) {
@@ -74,7 +116,7 @@ function toggleTabs() {
 		oWebsocket.send(json);
 	} else {
 		bSending = true;
-		$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+		$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 		window.setTimeout(function() { bSending = false; }, 1000);
 	}
 	document.location = document.location;
@@ -147,7 +189,7 @@ function createSwitchElement(sTabId, sDevId, aValues) {
 				oWebsocket.send(json);
 			} else {
 				bSending = true;
-				$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+				$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
@@ -185,7 +227,7 @@ function createPendingSwitchElement(sTabId, sDevId, aValues) {
 				oWebsocket.send(json);
 			} else {
 				bSending = true;
-				$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+				$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
@@ -201,7 +243,7 @@ function createPendingSwitchElement(sTabId, sDevId, aValues) {
 					oWebsocket.send(json);
 				} else {
 					bSending = true;
-					$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+					$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 					window.setTimeout(function() { bSending = false; }, 1000);
 				}
 			}
@@ -253,7 +295,7 @@ function createScreenElement(sTabId, sDevId, aValues) {
 				oWebsocket.send(json);
 			} else {
 				bSending = true;
-				$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+				$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
@@ -280,7 +322,7 @@ function createScreenElement(sTabId, sDevId, aValues) {
 				oWebsocket.send(json);
 			} else {
 				bSending = true;
-				$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+				$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
@@ -319,7 +361,7 @@ function createDimmerElement(sTabId, sDevId, aValues) {
 				oWebsocket.send(json);
 			} else {
 				bSending = true;
-				$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+				$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
@@ -335,7 +377,7 @@ function createDimmerElement(sTabId, sDevId, aValues) {
 						oWebsocket.send(json);
 					} else {
 						bSending = true;
-						$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+						$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 						window.setTimeout(function() { bSending = false; }, 1000);
 					}
 				}
@@ -387,7 +429,7 @@ function createWeatherElement(sTabId, sDevId, aValues) {
 						oWebsocket.send(json);
 					} else {
 						bSending = true;
-						$.get('http://'+location.host+'/send?'+encodeURIComponent(json));
+						$.get('http://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
 						window.setTimeout(function() { bSending = false; }, 1000);
 					}
 				}
@@ -408,6 +450,9 @@ function createWeatherElement(sTabId, sDevId, aValues) {
 		}
 		if('show-temperature' in aValues && aValues['show-temperature']) {
 			oTab.find('#'+sDevId+'_weather').append($('<div class="temperature_icon"></div><div class="temperature" id="'+sDevId+'_temp"></div>'));
+		}
+		if('show-pressure' in aValues && aValues['show-pressure']) {
+			oTab.find('#'+sDevId+'_weather').append($('<div class="pressure_icon"></div><div class="pressure" id="'+sDevId+'_pres"></div>'));
 		}
 		if('show-sunriseset' in aValues && aValues['show-sunriseset']) {
 			oTab.find('#'+sDevId+'_weather').append($('<div id="'+sDevId+'_sunset_icon" class="sunset_icon"></div><div class="sunset" id="'+sDevId+'_sunset"></div>'));
@@ -798,6 +843,10 @@ function parseValues(data) {
 					} else if(vindex == 'humidity' && $('#'+dvalues+'_humi').length > 0) {
 						if(dvalues in aDecimals) {
 							$('#'+dvalues+'_humi').text(vvalues.toFixed(aDecimals[dvalues]));
+						}
+					} else if(vindex == 'pressure' && $('#'+dvalues+'_pres').length > 0) {
+						if(dvalues in aDecimals) {
+							$('#'+dvalues+'_pres').text(vvalues.toFixed(aDecimals[dvalues]));
 						}
 					} else if(vindex == 'rain' && $('#'+dvalues+'_rain').length > 0) {
 						if(dvalues in aDecimals) {

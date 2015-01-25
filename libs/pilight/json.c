@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include "json.h"
+#include "mem.h"
 
 #define out_of_memory() do {                    \
 		fprintf(stderr, "Out of memory.\n");    \
@@ -1430,4 +1431,8 @@ int json_find_string(JsonNode *object, const char *name, char **out) {
 		return 0;
 	}
 	return 1;
+}
+
+void json_free(void *a) {
+	free(a);
 }

@@ -45,20 +45,11 @@
 #include "gc.h"
 
 static unsigned short main_loop = 1;
-static pthread_t pth;
 
 int main_gc(void) {
 	main_loop = 0;
 
 	log_shell_disable();
-
-	struct conf_hardware_t *tmp_confhw = conf_hardware;
-	while(tmp_confhw) {
-		if(tmp_confhw->hardware->deinit) {
-			tmp_confhw->hardware->deinit();
-		}
-		tmp_confhw = tmp_confhw->next;
-	}
 
 	datetime_gc();
 	ssdp_gc();
@@ -73,8 +64,10 @@ int main_gc(void) {
 
 	wiringXGC();
 	log_gc();
+	gc_clear();
 
-	sfree((void *)&progname);
+	FREE(progname);
+	xfree();
 
 	return EXIT_SUCCESS;
 }
@@ -93,10 +86,11 @@ void *receive_code(void *param) {
 }
 
 int main(int argc, char **argv) {
+	// memtrack();
 
 	struct options_t *options = NULL;
 	char *args = NULL;
-	char *configtmp = malloc(strlen(CONFIG_FILE)+1);
+	char *configtmp = MALLOC(strlen(CONFIG_FILE)+1);
 	pid_t pid = 0;
 
 	strcpy(configtmp, CONFIG_FILE);
@@ -112,7 +106,7 @@ int main(int argc, char **argv) {
 
 	wiringXLog = logprintf;
 
-	if(!(progname = malloc(12))) {
+	if(!(progname = MALLOC(12))) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}
@@ -142,7 +136,7 @@ int main(int argc, char **argv) {
 				goto close;
 			break;
 			case 'C':
-				configtmp = realloc(configtmp, strlen(args)+1);
+				configtmp = REALLOC(configtmp, strlen(args)+1);
 				strcpy(configtmp, args);
 			break;
 			default:
@@ -153,44 +147,47 @@ int main(int argc, char **argv) {
 	}
 	options_delete(options);
 
-	char *pilight_daemon = strdup("pilight-daemon");
+	char *pilight_daemon = MALLOC(strlen("pilight-daemon")+1);
 	if(!pilight_daemon) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}
+	strcpy(pilight_daemon, "pilight-daemon");
 	if((pid = findproc(pilight_daemon, NULL, 1)) > 0) {
 		logprintf(LOG_ERR, "pilight-daemon instance found (%d)", (int)pid);
-		sfree((void *)&pilight_daemon);
+		FREE(pilight_daemon);
 		goto close;
 	}
-	sfree((void *)&pilight_daemon);
+	FREE(pilight_daemon);
 
-	char *pilight_debug = strdup("pilight-debug");
+	char *pilight_debug = MALLOC(strlen("pilight-debug")+1);
 	if(!pilight_debug) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}
+	strcpy(pilight_debug, "pilight-debug");
 	if((pid = findproc(pilight_debug, NULL, 1)) > 0) {
 		logprintf(LOG_ERR, "pilight-debug instance found (%d)", (int)pid);
-		sfree((void *)&pilight_debug);
+		FREE(pilight_debug);
 		goto close;
 	}
-	sfree((void *)&pilight_debug);
+	FREE(pilight_debug);
 
 	if(config_set_file(configtmp) == EXIT_FAILURE) {
+		FREE(configtmp);
 		return EXIT_FAILURE;
 	}
 
 	protocol_init();
 	config_init();
 	if(config_read() != EXIT_SUCCESS) {
-		sfree((void *)&configtmp);
+		FREE(configtmp);
 		goto close;
 	}
-	sfree((void *)&configtmp);
+	FREE(configtmp);
 
 	/* Start threads library that keeps track of all threads used */
-	threads_create(&pth, NULL, &threads_start, (void *)NULL);
+	threads_start();
 
 	struct conf_hardware_t *tmp_confhw = conf_hardware;
 	while(tmp_confhw) {
@@ -207,7 +204,10 @@ int main(int argc, char **argv) {
 	}
 
 close:
-	if(main_loop) {
+	if(args != NULL) {
+		FREE(args);
+	}
+	if(main_loop == 1) {
 		main_gc();
 	}
 	return (EXIT_FAILURE);
