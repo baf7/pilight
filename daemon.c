@@ -741,7 +741,7 @@ void *send_code(void *param) {
 				if(hw->receive) {
 					thread_signal(hw->id, SIGUSR1);
 				}
-				logprintf(LOG_DEBUG, "**** RAW CODE ****");
+				logprintf(LOG_DEBUG, "++++**** RAW CODE ****");
 				if(log_level_get() >= LOG_DEBUG) {
 					for(i=0;i<protocol->rawlen;i++) {
 						printf("%d ", protocol->raw[i]);
@@ -749,25 +749,35 @@ void *send_code(void *param) {
 					printf("\n");
 				}
 				logprintf(LOG_DEBUG, "**** RAW CODE ****++++");
+printf ("\n**1 %d **\n",hw->send(sendqueue->code, protocol->rawlen, send_repeat*protocol->txrpt));
+printf ("\n**n\n");
 				if(hw->send(sendqueue->code, protocol->rawlen, send_repeat*protocol->txrpt) == 0) {
+printf ("\n2\n");
 					logprintf(LOG_DEBUG, "successfully send %s code", protocol->id);
 					if(strcmp(protocol->id, "raw") == 0) {
+printf ("\n3\n");
 						int plslen = protocol->raw[protocol->rawlen-1]/PULSE_DIV;
 						receive_queue(protocol->raw, protocol->rawlen, plslen, -1);
 					}
 				} else {
+printf ("\n4\n");
 					logprintf(LOG_ERR, "failed to send code");
 				}
+printf ("\n5\n");
 				if(hw->receive) {
+printf ("\n6\n");
 					thread_signal(hw->id, SIGUSR2);
 				}
 			} else {
+printf ("\n7\n");
 				if(strcmp(protocol->id, "raw") == 0) {
+printf ("\n8\n");
 					int plslen = protocol->raw[protocol->rawlen-1]/PULSE_DIV;
 					receive_queue(protocol->raw, protocol->rawlen, plslen, -1);
 				}
+printf ("\n9\n");
 			}
-
+printf ("\nA**\n");
 			if(message) {
 				broadcast_queue(sendqueue->protoname, message);
 				json_delete(message);
@@ -1152,7 +1162,7 @@ static void socket_parse_data(int i, char *buffer) {
 		socket_write(sd, "BEAT");
 	} else {
 		if(pilight.runmode != ADHOC) {
-			logprintf(LOG_DEBUG, "socket recv: %s", buffer);
+			logprintf(LOG_DEBUG, "socket *1recv: %s", buffer);
 		}
 		/* Serve static webserver page. This is the only request that is
 		   expected not to be a json object */
@@ -1809,7 +1819,7 @@ void *clientize(void *param) {
 		   || strcmp(recvBuff, "{\"status\":\"success\"}") != 0) {
 			goto close;
 		}
-		logprintf(LOG_DEBUG, "socket recv: %s", recvBuff);
+		logprintf(LOG_DEBUG, "socket *2recv: %s", recvBuff);
 
 		json = json_mkobject();
 		json_append_member(json, "action", json_mkstring("request config"));
@@ -1819,7 +1829,7 @@ void *clientize(void *param) {
 		json_delete(json);
 
 		if(socket_read(sockfd, &recvBuff) == 0) {
-			logprintf(LOG_DEBUG, "socket recv: %s", recvBuff);
+			logprintf(LOG_DEBUG, "socket *3recv: %s", recvBuff);
 			if(json_validate(recvBuff) == true) {
 				json = json_decode(recvBuff);
 				if(json_find_string(json, "message", &message) == 0) {
@@ -1861,7 +1871,7 @@ void *clientize(void *param) {
 			if(socket_read(sockfd, &recvBuff) != 0) {
 				break;
 			}
-			logprintf(LOG_DEBUG, "socket recv: %s", recvBuff);
+			logprintf(LOG_DEBUG, "socket *4recv: %s", recvBuff);
 			char *pch = strtok(recvBuff, "\n");
 			while(pch) {
 				if(json_validate(pch) == true) {
