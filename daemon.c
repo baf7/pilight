@@ -710,14 +710,18 @@ void *send_code(void *param) {
 					printf("\n");
 				}
 				logprintf(LOG_DEBUG, "**** RAW CODE ****");
+printf ("\n\n************************************* LLL **********\n\n");
 				if(hw->send(sendqueue->code, protocol->rawlen, send_repeat*protocol->txrpt) == 0) {
 					logprintf(LOG_DEBUG, "successfully send %s code", protocol->id);
+printf ("\n\n************************************* kkkk **********\n\n");
 					if(strcmp(protocol->id, "raw") == 0) {
 						int plslen = protocol->raw[protocol->rawlen-1]/PULSE_DIV;
 						receive_queue(protocol->raw, protocol->rawlen, plslen, -1);
 					}
 				} else {
 					logprintf(LOG_ERR, "failed to send code");
+					logprintf(LOG_DEBUG, "failed to send code");
+printf ("\n\n************************************* kkkk **********\n\n");
 				}
 				if(hw->receive) {
 					hw->wait = 0;
@@ -1545,9 +1549,10 @@ fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 							// and based on our knowledge of the SYNC structure
 							// we can recreate the header pulse sequence
 							if (duration  > PREAMB_SYNC_DMAX) {
-								pthread_mutex_unlock(&hw->lock);
-								duration_next = hw->receive();
-								pthread_mutex_lock(&hw->lock);
+//								pthread_mutex_unlock(&hw->lock);
+//								duration_next = hw->receive();
+//								pthread_mutex_lock(&hw->lock);
+duration_next=123;
 								duration += duration_next;
 								p_header_21 = 1;	// The next pulse is short
 #ifdef PRINT_DEBUG_21
@@ -1572,7 +1577,7 @@ fprintf(stderr,"\n");
 						}
 						preamb_state = WAIT_FOR_END_OF_DATA_3;
 						break;
-                                        case WAIT_FOR_END_OF_DATA:
+					case WAIT_FOR_END_OF_DATA:
 #ifdef PRINT_DEBUG_21
 fprintf(stderr,"\nWFD - ");
 #endif
