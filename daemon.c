@@ -705,9 +705,9 @@ void *send_code(void *param) {
 				logprintf(LOG_DEBUG, "**** RAW CODE ****");
 				if(log_level_get() >= LOG_DEBUG) {
 					for(i=0;i<protocol->rawlen;i++) {
-						printf("%d ", protocol->raw[i]);
+						fprintf(stderr,"%d ", protocol->raw[i]);
 					}
-					printf("\n");
+					fprintf(stderr,"\n");
 				}
 				logprintf(LOG_DEBUG, "**** RAW CODE ****");
 
@@ -1419,21 +1419,21 @@ void *receive_code(void *param) {
 	int rawcode[MAXPULSESTREAMLENGTH] = {0};
 	int duration = 0;
 
-#define WAIT_FOR_END_OF_HEADER          0
-#define WAIT_FOR_END_OF_DATA            1
-#define WAIT_FOR_END_OF_DATA_2          4
-#define WAIT_FOR_END_OF_DATA_3          5
-#define PREAMB_SYNC_L                   488	// V2.1 - clk = 1024 Hz
+#define WAIT_FOR_END_OF_HEADER	0
+#define WAIT_FOR_END_OF_DATA	1
+#define WAIT_FOR_END_OF_DATA_2	4
+#define WAIT_FOR_END_OF_DATA_3	5
+#define PREAMB_SYNC_L			488	// V2.1 - clk = 1024 Hz
 #define PREAMB_SYNC_MIN			732
-#define PREAMB_SYNC_H                   976	// V2.1 - clk = 1024 Hz
+#define PREAMB_SYNC_H			976	// V2.1 - clk = 1024 Hz
 #define PREAMB_SYNC_MAX			1120	// A single value above this value is added to the next value
 #define PREAMB_SYNC_DMAX		PREAMB_SYNC_H+PREAMB_SYNC_L
-#define O21_FOOTER			11018	// GAP pulse Oregon V2.1
+#define O21_FOOTER				11018	// GAP pulse Oregon V2.1
 #define PRE_AMB_HEADER_CNT		22
-#define L_HEADER_21			12
-//#define PRINT_DEBUG_21
-
-#ifdef PRINT_DEBUG_21
+#define L_HEADER_21				12
+#define PRINT_DEBUG_21
+//#define PRINT_DEBUG_21A
+#ifdef PRINT_DEBUG_21A
 int i_loop;
 #endif
 
@@ -1500,17 +1500,17 @@ int flag_oregon_21 = 0;
 						if ( duration > PREAMB_SYNC_MIN ) {      // Check for pulses with clock duration
 							preamb_pulse_counter++;
 							preamb_duration += rawcode[rawlen];
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"\n    Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n    Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
 						} else {
 // Check if we found the deviating pulse after a series of consecutive pulses
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"\n No Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n No Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
 							if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
-#ifdef PRINT_DEBUG_21
-fprintf(stderr," - accepted SYNC found.\n");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," - accepted SYNC found.\n");
 #endif
 								flag_oregon_21 = 1;		// flag for footer based protocols: 2nd transmission
 								preamb_state = WAIT_FOR_END_OF_DATA;
@@ -1519,8 +1519,8 @@ fprintf(stderr," - accepted SYNC found.\n");
 								rawcode[rawlen] = duration;     // Store the 1st SYNC pulse
 							} else {
 // Below threshold, so we have to reset and will continue to check
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"\nNo Pre-Amble. pass data on.");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\nNo Pre-Amble. pass data on.");
 #endif
 								preamb_duration = 0;
 								preamb_pulse_counter = 0;
@@ -1529,7 +1529,7 @@ fprintf(stderr,"\nNo Pre-Amble. pass data on.");
 						break;
 					case WAIT_FOR_END_OF_DATA_2:
 #ifdef PRINT_DEBUG_21
-fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
+logprintf(LOG_DEBUG,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 #endif
 						rawlen = 0;				// Restore 1st SYNC byte already received
 						preamb_pulse_counter = 1;
@@ -1552,15 +1552,15 @@ fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 								duration += duration_next;
 								p_header_21 = 1;	// The next pulse is short
 #ifdef PRINT_DEBUG_21
-fprintf(stderr,"\nWFD3S: r: %d - dn:%d d:%d \nWFD3R: ",rawlen, duration_next, duration);
+logprintf(LOG_DEBUG,"\nWFD3S: rawl: %d - dur: %d durn:%d totdur:%d \nWFD3R: ",rawlen, duration-duration_next, duration_next, duration);
 #endif
 							}
 							// Rebuild missing SYNC Header: 488, 976, 488 488 976 488 488 976
-							while ( (duration > 100) && (p_header_21 < L_HEADER_21) ) {
+							while ( (duration > 100) && (p_header_21 < (unsigned int)L_HEADER_21) ) {
 								rawcode[rawlen++] = header_21[p_header_21];
 								duration -= header_21[p_header_21];
 #ifdef PRINT_DEBUG_21
-fprintf(stderr,"r: %d - d:%d - ppc: %d ",rawlen, duration, preamb_pulse_counter);
+logprintf(LOG_DEBUG,"r: %d - d:%d - ppc: %d ",rawlen, duration, preamb_pulse_counter);
 #endif
 								preamb_pulse_counter++;
 								p_header_21++;
@@ -1568,18 +1568,18 @@ fprintf(stderr,"r: %d - d:%d - ppc: %d ",rawlen, duration, preamb_pulse_counter)
 							rawlen--; // Adjust pointer
 							preamb_pulse_counter--; // Adjust counter
 #ifdef PRINT_DEBUG_21
-fprintf(stderr,"\n");
+logprintf(LOG_DEBUG,"\n");
 #endif
 						}
 						preamb_state = WAIT_FOR_END_OF_DATA_3;
 						break;
 					case WAIT_FOR_END_OF_DATA:
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"\nWFD - ");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\nWFD - ");
 #endif
 						if ( duration > 5100) {                         // Regular GAP detected search for Header
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"Footer found: Reset the state machine.");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Footer found: Reset the state machine.");
 #endif
 							if (flag_oregon_21 == 1) {		// 2nd footer is also oregon_21
 								duration = O21_FOOTER;
@@ -1590,17 +1590,17 @@ fprintf(stderr,"Footer found: Reset the state machine.");
 						if ( duration > PREAMB_SYNC_MIN ) {
 							preamb_pulse_counter++;
 							preamb_duration += rawcode[rawlen];
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"Potential Pre-Amble pulses - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Potential Pre-Amble pulses - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
 						} else {
 // Check if we found the deviating pulse after a series of consecutive pulses
-#ifdef PRINT_DEBUG_21
-fprintf(stderr," --No--   Pre-Amble pulse  - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," --No--   Pre-Amble pulse  - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d rawlen %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, rawlen);
 #endif
 							if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
-#ifdef PRINT_DEBUG_21
-fprintf(stderr,"Pre-Amble detected Save SYNC, generate artifical footer -> WFD2.\n");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Pre-Amble detected Save SYNC, generate artifical footer -> WFD2.\n");
 #endif
 								latch_duration = duration;      // Remember this pulse for WFD2
 								rawcode[rawlen] = O21_FOOTER;   // Emulate Footer
@@ -1608,8 +1608,8 @@ fprintf(stderr,"Pre-Amble detected Save SYNC, generate artifical footer -> WFD2.
 								preamb_state = WAIT_FOR_END_OF_DATA_2;
 							} else {
 							// Below threshold, so we continue to wait
-#ifdef PRINT_DEBUG_21
-fprintf (stderr," Wait. pass data on");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," Wait. pass data on");
 #endif
 								preamb_duration = 0;
 								preamb_pulse_counter = 0;
@@ -1617,12 +1617,12 @@ fprintf (stderr," Wait. pass data on");
 						}
 						break;
 					case WAIT_FOR_END_OF_DATA_3:
-#ifdef PRINT_DEBUG_21
-fprintf (stderr,"WFD3 - ");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"WFD3 - ");
 #endif
 						if ( duration > 5100) {
-#ifdef PRINT_DEBUG_21
-fprintf (stderr,"Replace footer %d with artifical footer. -> WFH",duration);
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Replace footer %d with artifical footer. -> WFH",duration);
 #endif
 							preamb_state = WAIT_FOR_END_OF_HEADER;
 							duration = O21_FOOTER;    // Replace GAP with defined footer value
@@ -1635,8 +1635,8 @@ fprintf (stderr,"Replace footer %d with artifical footer. -> WFH",duration);
 				} // Switch
 				rawlen++;
 				if(rawlen > MAXPULSESTREAMLENGTH-1) {
-#ifdef PRINT_DEBUG_21
-fprintf (stderr,"**** rawlen > 511 -> WFH");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"**** rawlen > 511 -> WFH");
 #endif
 					rawlen = 0;
 					preamb_duration = 0;
@@ -1644,27 +1644,29 @@ fprintf (stderr,"**** rawlen > 511 -> WFH");
 					preamb_state = WAIT_FOR_END_OF_HEADER;
 				}
 				if(duration > 5100) {
-#ifdef PRINT_DEBUG_21
-fprintf (stderr,"\n**** ->");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n**** ->");
 #endif
 					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
 						plslen = duration/PULSE_DIV;
 					}
 					/* Let's do a little filtering here as well */
 					if(rawlen >= minrawlen && rawlen <= maxrawlen) {
-#ifdef PRINT_DEBUG_21
-fprintf (stderr,"Queueing raw data for further processing.");
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Queueing raw data for further processing.");
 logprintf(LOG_DEBUG, "Test duration of Call");
 #endif
 						receive_queue(rawcode, rawlen, plslen, hw->type);
 					}
-#ifdef PRINT_DEBUG_21
+#ifdef PRINT_DEBUG_21A
 logprintf(LOG_DEBUG, "Test duration of Call");
-fprintf(stderr," rawlen %d plslen %d \n**** rawcode: ", rawlen, plslen);
-for (i_loop=0;i_loop<=rawlen;i_loop++) {
-        fprintf(stderr," %d",rawcode[i_loop]);
+if(log_level_get() >= LOG_DEBUG) {
+ printf("\nrawlen %d plslen %d \n**** rawcode: ", rawlen, plslen);
+ for (i_loop=0;i_loop<=rawlen;i_loop++) {
+         printf(" %d",rawcode[i_loop]);
+ }
+ printf("\n");
 }
-fprintf(stderr,"\n");
 #endif
 					rawlen = 0;
 					preamb_duration = 0;

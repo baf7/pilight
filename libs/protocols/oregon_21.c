@@ -35,7 +35,8 @@ Change Log:
 #include "gc.h"
 #include "oregon_21.h"
 
-//#define PRINT_DEBUG
+#define PRINT_DEBUG
+//#define PRINT_DEBUGA
 #define OREGON_21		       		oregon_21Weather
 #define PULSE_OREGON_21_SYNC		976			  // 16 pairs Pre-Amble
 #define PULSE_OREGON_21_SYNC_L		PULSE_OREGON_21_SYNC-192  // 784 minimum
@@ -166,8 +167,8 @@ static void OREGON_21WeatherParseCode(void) {
 			case 1: // The fourth long pulse defines the end of SYNC
 				rDataTime = OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
-#ifdef PRINT_DEBUG
-printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_0);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_0);
 #endif
 				if( (rDataTime >= dur_long[rf_state][0]) && (rDataTime <= dur_long[rf_state][1]) ) {
 					s_0++;							// The 4th SYNC pulse is a logical "1"
@@ -177,7 +178,7 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 						rDataTime = 0;				// A falling edge at Short Pulse duration defines no state change
 						pBin = 0;					// Logical Bit pointer
 						if (rf_state == 0) {
-#ifdef PRINT_DEBUG
+#ifdef PRINT_DEBUGA
 						logprintf(LOG_DEBUG, "OREGON_21: rf_state forced to ON.");
 #endif
 							rf_state = 1;
@@ -194,16 +195,16 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 				// rf_state is on
 				rDataTime= OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
-#ifdef PRINT_DEBUG
-printf("\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
 #endif
 				// two short pulses define a bit with no logical state change
 				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
 					// No Data pulse yet, Sync only, there must be another Short pulse
 					rDataTime=OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
-#ifdef PRINT_DEBUG
-printf("\nlog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nlog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
 #endif
 					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
 						// Data pulse, No Toogle
@@ -218,8 +219,8 @@ printf("\nlog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDat
 					if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
 						// Data pulse, Toogle
 						rDataLow = -rDataLow;
-#ifdef PRINT_DEBUG
-printf("\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
 #endif
 					} else {
 						// Protocol Error or footer, there is no long pulse
@@ -239,16 +240,16 @@ printf("\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDat
 					// Get the 2nd bit and check if it is inverted
 					rDataTime= OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
-#ifdef PRINT_DEBUG
-printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
 #endif
 					// Short Pulse changes are neutral
 					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
 						// No Data pulse yet, Sync only, there must be another Short pulse
 						rDataTime=OREGON_21->raw[pRaw++];
 						rf_state ^= 1;
-#ifdef PRINT_DEBUG
-printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
 #endif
 							if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1])) {
 							// Data pulse, No Toogle
@@ -260,8 +261,8 @@ printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDa
 							protocol_sync = 94;
 						}
 					} else {
-#ifdef PRINT_DEBUG
-printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#ifdef PRINT_DEBUGA
+logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
 #endif
 						if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
 							// Data pulse, Toogle
@@ -321,6 +322,13 @@ printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDa
 			// Inverted and regular Bit do not match. Error in payload
 			case 91:
 			// Unknown Footer Length
+			// some devices send a spike before the footer, check if next pulse is footer
+				protocol_sync = 91;
+				if ( (OREGON_21->raw[pRaw+1] > PULSE_OREGON_21_FOOTER_L) && (OREGON_21->raw[pRaw+1] < PULSE_OREGON_21_FOOTER_H) ) {
+					logprintf(LOG_DEBUG, "OREGON_21: Ignore spike: %d at pRaw: %d before footer with length: %d", rDataTime, pRaw, OREGON_21->raw[pRaw+1]);
+					rDataTime=OREGON_21->raw[pRaw++];
+					protocol_sync = 98;
+				}
 			case 92:
 			// Long pulse missing 2nd inverted data bit
 			case 93:
@@ -349,9 +357,9 @@ printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDa
 			logprintf(LOG_DEBUG, "**** OREGON_21 RAW CODE ****");
 			if(log_level_get() >= LOG_DEBUG) {
 				for(x=0;x<pRaw;x++) {
-					printf("%d ", OREGON_21->raw[x]);
+					fprintf(stderr,"%d ", OREGON_21->raw[x]);
 				}
-				printf("\n");
+				fprintf(stderr,"\n");
 			}
 #endif
 			break;
@@ -449,15 +457,15 @@ printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDa
 		logprintf(LOG_DEBUG, "**** OREGON_21 BIN CODE ****");
 #endif
 		if(log_level_get() >= LOG_DEBUG) {
-			printf("\n device: %d - id: %d - unit: %d - batt: %d - temp: %d - humi: %d - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
-			printf("\n wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d\n", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
+			fprintf(stderr,"\n device: %d - id: %d - unit: %d - batt: %d - temp: %d - humi: %d - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
+			fprintf(stderr,"\n wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d\n", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
 		}
 
 		OREGON_21WeatherCreateMessage(device_id, id, unit, battery, temp, humidity, uv, wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
 
 	} else {
 #ifdef PRINT_DEBUG
-		printf("\n*****-> protocol_sync: %d <-*****\n",protocol_sync);
+		logprintf(LOG_DEBUG,"\n*****-> protocol_sync: %d <-*****\n",protocol_sync);
 		logprintf(LOG_DEBUG, "OREGON_21 Parsecode Error");
 #endif
 	}
@@ -513,7 +521,7 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "oregon_21";
-	module->version =  "1.02";
+	module->version =  "1.03";
 	module->reqversion =  "5.0";
 	module->reqcommit =  NULL;
 }
