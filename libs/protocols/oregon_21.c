@@ -35,7 +35,7 @@ Change Log:
 #include "gc.h"
 #include "oregon_21.h"
 
-#define PRINT_DEBUG
+//#define PRINT_DEBUG
 #define OREGON_21		       		oregon_21Weather
 #define PULSE_OREGON_21_SYNC		976			  // 16 pairs Pre-Amble
 #define PULSE_OREGON_21_SYNC_L		PULSE_OREGON_21_SYNC-192  // 784 minimum
@@ -61,7 +61,7 @@ Change Log:
 #define MINRAWLEN_OREGON_21_PROT	140     // all Data bit toogle
 #define MAXRAWLEN_OREGON_21_PROT	428     // all Data bit equal
 
-static void OREGON_21WeatherCreateMessage(	int device_id, int id, int unit, int battery, int temp, int humidity,
+ static void OREGON_21WeatherCreateMessage(	int device_id, int id, int unit, int battery, int temp, int humidity,
 					  						int uv, int wind_dir, int wind_speed, int wind_avg, int rain, int rain_total, int pressure) {
 	OREGON_21->message = json_mkobject();
 	json_append_member(OREGON_21->message, "device_id", json_mknumber(device_id,0));
@@ -80,7 +80,11 @@ static void OREGON_21WeatherCreateMessage(	int device_id, int id, int unit, int 
 }
 
 static void OREGON_21WeatherParseCode(void) {
-	int i, x, s_0;
+	int i, s_0;
+#ifdef PRINT_DEBUG
+	int x;
+#endif
+
 	int pBin = 0, pRaw = 0;
 	int protocol_sync = 1;
 	int rDataLow = 0, rDataTime = 0;
@@ -99,16 +103,27 @@ static void OREGON_21WeatherParseCode(void) {
 	int rain_total = -1;
 	int pressure = -1;
 //
+// The last preamble bit is ON, e.q. the first SYNC nibble
+// is send as RF: OFF,ON,OFF
+//
 // The duration of pulses depends on the state of RF
-// a,b,c
+// a,b
 // a - 0- off,  1- on
 // b - 0- min   1- max
-// #define VAR_PULSE
+#define VAR_PULSE
+//                           OFF         ON
+// S-OFF- 581 S-ON- 396      400, 760    220   580
+// L-OFF-1069 L-ON- 884      769,1369    640, 1120
+//                           MIN  MAX    MIN  MAX
+//	int dur_short[2][2] = { {400, 850}, {200, 615} };
+//	int dur_long[2][2] = { {850, 1408}, {615, 1100} };
+//
+//
 #ifdef VAR_PULSE
-	int dur_short[2][2] = { {220, 680}, {220, 680} };
-	int dur_long[2][2] = { {688, 1408}, {688, 1408} };
+	int dur_short[2][2] = { {220, 688}, {210, 640} };
+	int dur_long[2][2] = { {688, 1500}, {641, 1500} };
 #endif
-	int rf_state = 0; 			// 0 - off, 1- on
+	int rf_state = 1; 			// 0 - off, 1- on
 //
 //      int cksum = 0;
 //
@@ -125,7 +140,7 @@ static void OREGON_21WeatherParseCode(void) {
 // and remove all inverted bits
 	pRaw = 0;
 	s_0 = 0;
-	rf_state = 0;
+	rf_state = 1;
 	for  (i=0;i<BINLEN_OREGON_21_PROT;i++) {
 		OREGON_21->binary[i]=0;
 	}
@@ -142,33 +157,31 @@ static void OREGON_21WeatherParseCode(void) {
 						protocol_sync = 95;
 					}
 				}
-#ifdef VAR_PULSE
-				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-				if( (rDataTime > PULSE_OREGON_21_SHORT_L) && (rDataTime < PULSE_OREGON_21_SHORT_H) ) {
-#endif
+				if( (rDataTime >= PULSE_OREGON_21_SHORT_L) && (rDataTime <= PULSE_OREGON_21_SHORT_H) ) {
 					protocol_sync = 1;				// We found the first short pulse, indicating SYNC nibbles
 					s_0 = 0;						// Reset Long Pulse counter, SYNC ends with the 4th long pulses
-					rf_state = 1;					// ON
+					rf_state = 0;					// RF status of 1st short SYNC is off
 				}
 			break;
 			case 1: // The fourth long pulse defines the end of SYNC
 				rDataTime = OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
+#ifdef PRINT_DEBUG
 printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_0);
-#ifdef VAR_PULSE
-				if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
 #endif
-#ifndef VAR_PULSE
-				if( (rDataTime > PULSE_OREGON_21_LONG_L) && (rDataTime < PULSE_OREGON_21_LONG_H) ) {
-#endif
+				if( (rDataTime >= dur_long[rf_state][0]) && (rDataTime <= dur_long[rf_state][1]) ) {
 					s_0++;							// The 4th SYNC pulse is a logical "1"
 					if (s_0 > 3) {					// rDataLow 1-"0", -1-"1"
 						protocol_sync = 2;
 						rDataLow = -1;
 						rDataTime = 0;				// A falling edge at Short Pulse duration defines no state change
 						pBin = 0;					// Logical Bit pointer
+						if (rf_state == 0) {
+#ifdef PRINT_DEBUG
+						logprintf(LOG_DEBUG, "OREGON_21: rf_state forced to ON.");
+#endif
+							rf_state = 1;
+						}
 					}
 				}
 			break;
@@ -181,43 +194,37 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 				// rf_state is on
 				rDataTime= OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
+#ifdef PRINT_DEBUG
+printf("\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
+#endif
 				// two short pulses define a bit with no logical state change
-#ifdef VAR_PULSE
 				if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-				if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
-#endif
 					// No Data pulse yet, Sync only, there must be another Short pulse
 					rDataTime=OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
-#ifdef VAR_PULSE
+#ifdef PRINT_DEBUG
+printf("\nlog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#endif
 					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-					if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
-#endif
 						// Data pulse, No Toogle
 					} else {
-						// Protocol Error, there is no valid single short pulse
+						// Protocol Error, there is no 2nd valid single short pulse
 #ifdef PRINT_DEBUG
 						logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd short pulse");
 #endif
-						protocol_sync = 96;
+						protocol_sync = 93;
 					}
 				} else {
-#ifdef VAR_PULSE
 					if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-					if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
-#endif
 						// Data pulse, Toogle
 						rDataLow = -rDataLow;
+#ifdef PRINT_DEBUG
+printf("\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_long[rf_state][0],dur_long[rf_state][1]);
+#endif
 					} else {
 						// Protocol Error or footer, there is no long pulse
 #ifdef PRINT_DEBUG
-						logprintf(LOG_DEBUG, "OREGON_21: Missing expected long Pulse. Check for footer condition");
+						logprintf(LOG_DEBUG, "OREGON_21: End of valid payload - Check for footer condition");
 #endif
 						protocol_sync = 3;
 					}
@@ -227,41 +234,36 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 				} else {
 					OREGON_21->binary[pBin]=1;
 				}
+
 				if (protocol_sync == 2) {	       // Continue only if no footer or error condition set
 					// Get the 2nd bit and check if it is inverted
 					rDataTime= OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
+#ifdef PRINT_DEBUG
+printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#endif
 					// Short Pulse changes are neutral
-#ifdef VAR_PULSE
 					if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-					if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
-#endif
 						// No Data pulse yet, Sync only, there must be another Short pulse
 						rDataTime=OREGON_21->raw[pRaw++];
 						rf_state ^= 1;
-#ifdef VAR_PULSE
+#ifdef PRINT_DEBUG
+printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#endif
 							if( (rDataTime > dur_short[rf_state][0]) && (rDataTime < dur_short[rf_state][1])) {
-#endif
-#ifndef VAR_PULSE
-							if( rDataTime > PULSE_OREGON_21_SHORT_L && rDataTime < PULSE_OREGON_21_SHORT_H) {
-#endif
 							// Data pulse, No Toogle
 						} else {
 							// Protocol Error, there is no single short pulse
 #ifdef PRINT_DEBUG
-							logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd inverted short pulse");
+							logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd short pulse");
 #endif
-							protocol_sync = 96;
+							protocol_sync = 94;
 						}
 					} else {
-#ifdef VAR_PULSE
+#ifdef PRINT_DEBUG
+printf("\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", rDataLow, rDataTime, pRaw, rf_state,dur_short[rf_state][0],dur_short[rf_state][1]);
+#endif
 						if( (rDataTime > dur_long[rf_state][0]) && (rDataTime < dur_long[rf_state][1]) ) {
-#endif
-#ifndef VAR_PULSE
-						if( rDataTime > PULSE_OREGON_21_LONG_L && rDataTime < PULSE_OREGON_21_LONG_H) {
-#endif
 							// Data pulse, Toogle
 							rDataLow = - rDataLow;
 						} else {
@@ -269,7 +271,7 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 #ifdef PRINT_DEBUG
 							logprintf(LOG_DEBUG, "OREGON_21: Error missing inverted long pulse");
 #endif
-							protocol_sync = 96;
+							protocol_sync = 92;
 						}
 					}
 					if ( rDataLow == 1 ) {
@@ -288,14 +290,14 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 #ifdef PRINT_DEBUG
 							logprintf(LOG_DEBUG, "OREGON_21: Bit Error in pulse stream");
 #endif
-							protocol_sync = 96;
+							protocol_sync = 90;
 						}
 					}
 					if (pBin>BINLEN_OREGON_21_PROT) {
 #ifdef PRINT_DEBUG
 						logprintf(LOG_DEBUG, "OREGON_21: Too many binary bits decoded. Analysis abandoned");
 #endif
-						protocol_sync = 96;
+						protocol_sync = 89;
 					}
 				}
 			break;
@@ -310,29 +312,33 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 #ifdef PRINT_DEBUG
 				logprintf(LOG_DEBUG, "OREGON_21: Unknown Footer length");
 #endif
-				protocol_sync = 96;
+				protocol_sync = 91;
 			}
 			break;
+			case 89:
+			// Tha max. of bits in binary data array was exceeded
+			case 90:
+			// Inverted and regular Bit do not match. Error in payload
+			case 91:
+			// Unknown Footer Length
+			case 92:
+			// Long pulse missing 2nd inverted data bit
+			case 93:
+			// Short pulse missing 1st inverted data bit
+			case 94:
+			// Short pulse missing 2nd data bit
 			case 95:
-			// We did not find a valid Pre-Amble
-#ifdef PRINT_DEBUG
-				logprintf(LOG_DEBUG, "OREGON_21: No valid Pre-Amble data found.");
-#endif
+			// We did not find valid Pre-Amble data
+				logprintf(LOG_DEBUG, "OREGON_21: err %d No valid data found.", protocol_sync);
 			case 96:
 				protocol_sync = 99;
-#ifdef PRINT_DEBUG
 				logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
-#endif
 			break;
 			case 97:
 			// We decoded a footer pulse without decoding the correct number of binary bits
-#ifdef PRINT_DEBUG
 				logprintf(LOG_DEBUG, "OREGON_21: Err 97 unexpected EOF.");
-#endif
 			case 98:
-#ifdef PRINT_DEBUG
 				logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
-#endif
 			// We have reached the end of processing raw data
 			case 99:
 			default:
@@ -341,13 +347,13 @@ printf("\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataTime, pRaw, s_
 		if (protocol_sync > 95) {
 #ifdef PRINT_DEBUG
 			logprintf(LOG_DEBUG, "**** OREGON_21 RAW CODE ****");
-#endif
 			if(log_level_get() >= LOG_DEBUG) {
 				for(x=0;x<pRaw;x++) {
 					printf("%d ", OREGON_21->raw[x]);
 				}
 				printf("\n");
 			}
+#endif
 			break;
 		} // Switch
 	}

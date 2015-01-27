@@ -1431,7 +1431,7 @@ void *receive_code(void *param) {
 #define O21_FOOTER			11018	// GAP pulse Oregon V2.1
 #define PRE_AMB_HEADER_CNT		22
 #define L_HEADER_21			12
-#define PRINT_DEBUG_21
+//#define PRINT_DEBUG_21
 
 #ifdef PRINT_DEBUG_21
 int i_loop;
@@ -1546,10 +1546,9 @@ fprintf(stderr,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 							// and based on our knowledge of the SYNC structure
 							// we can recreate the header pulse sequence
 							if (duration  > PREAMB_SYNC_DMAX) {
-//								pthread_mutex_unlock(&hw->lock);
-//								duration_next = hw->receive();
-//								pthread_mutex_lock(&hw->lock);
-duration_next=123;
+								pthread_mutex_unlock(&hw->lock);
+								duration_next = hw->receive();
+								pthread_mutex_lock(&hw->lock);
 								duration += duration_next;
 								p_header_21 = 1;	// The next pulse is short
 #ifdef PRINT_DEBUG_21
