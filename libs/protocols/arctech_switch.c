@@ -58,22 +58,36 @@ static void arctechSwParseBinary(void) {
 
 static void arctechSwCreateLow(int s, int e) {
 	int i;
-
+/*
 	for(i=s;i<=e;i+=4) {
 		arctech_switch->raw[i]=(arctech_switch->plslen->length);
 		arctech_switch->raw[i+1]=(arctech_switch->plslen->length);
 		arctech_switch->raw[i+2]=(arctech_switch->plslen->length);
 		arctech_switch->raw[i+3]=(arctech_switch->pulse*arctech_switch->plslen->length);
 	}
+*/
+	for(i=s;i<=e;i+=4) {
+		arctech_switch->raw[i]=231;
+		arctech_switch->raw[i+1]=(arctech_switch->plslen->length);
+		arctech_switch->raw[i+2]=231;
+		arctech_switch->raw[i+3]=1386;
+	}
 }
 
 static void arctechSwCreateHigh(int s, int e) {
 	int i;
-
+/*
 	for(i=s;i<=e;i+=4) {
 		arctech_switch->raw[i]=(arctech_switch->plslen->length);
 		arctech_switch->raw[i+1]=(arctech_switch->pulse*arctech_switch->plslen->length);
 		arctech_switch->raw[i+2]=(arctech_switch->plslen->length);
+		arctech_switch->raw[i+3]=(arctech_switch->plslen->length);
+	}
+*/
+	for(i=s;i<=e;i+=4) {
+		arctech_switch->raw[i]=231;
+		arctech_switch->raw[i+1]=1386;
+		arctech_switch->raw[i+2]=231;
 		arctech_switch->raw[i+3]=(arctech_switch->plslen->length);
 	}
 }
@@ -128,6 +142,7 @@ static void arctechSwCreateUnit(int unit) {
 }
 
 static void arctechSwCreateFooter(void) {
+	arctech_switch->raw[130]=231;
 	arctech_switch->raw[131]=(PULSE_DIV*arctech_switch->plslen->length);
 }
 
@@ -194,6 +209,8 @@ void arctechSwInit(void) {
 	protocol_device_add(arctech_switch, "nexa_switch", "Nexa Switches");
 	protocol_device_add(arctech_switch, "coco_switch", "CoCo Technologies Switches");
 	protocol_device_add(arctech_switch, "intertechno_switch", "Intertechno Switches");
+	protocol_device_add(arctech_switch, "intertechno_itr_switch", "ITT-1500");
+	protocol_plslen_add(arctech_switch, 308);
 	protocol_plslen_add(arctech_switch, 315);
 	protocol_plslen_add(arctech_switch, 303);
 	protocol_plslen_add(arctech_switch, 251);
@@ -219,7 +236,7 @@ void arctechSwInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name = "arctech_switch";
-	module->version = "1.1";
+	module->version = "1.11";
 	module->reqversion = "5.0";
 	module->reqcommit = "84";
 }
