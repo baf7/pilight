@@ -210,11 +210,11 @@ void arctechSwInit(void) {
 	protocol_device_add(arctech_switch, "coco_switch", "CoCo Technologies Switches");
 	protocol_device_add(arctech_switch, "intertechno_switch", "Intertechno Switches");
 	protocol_device_add(arctech_switch, "intertechno_itr_switch", "ITT-1500");
-	protocol_plslen_add(arctech_switch, 308);
 	protocol_plslen_add(arctech_switch, 315);
 	protocol_plslen_add(arctech_switch, 303);
 	protocol_plslen_add(arctech_switch, 251);
 	protocol_plslen_add(arctech_switch, 279);
+	protocol_plslen_add(arctech_switch, 308);
 	arctech_switch->devtype = SWITCH;
 	arctech_switch->hwtype = RF433;
 	arctech_switch->pulse = 5;
