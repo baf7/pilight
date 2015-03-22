@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -147,6 +147,8 @@ static int ninjablocksWeatherCheckValues(struct JsonNode *jvalues) {
 			}
 			snode->id = id;
 			snode->unit = unit;
+			snode->temp = 0;
+			snode->humi = 0;
 
 			json_find_number(jvalues, "temperature-offset", &snode->temp);
 			json_find_number(jvalues, "humidity-offset", &snode->humi);
@@ -170,7 +172,7 @@ static void ninjablocksWeatherGC(void) {
 	}
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void ninjablocksWeatherInit(void) {
@@ -207,7 +209,7 @@ void ninjablocksWeatherInit(void) {
 	ninjablocks_weather->gc=&ninjablocksWeatherGC;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "ninjablocks_weather";
 	module->version = "0.11";

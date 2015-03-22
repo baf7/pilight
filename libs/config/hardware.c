@@ -23,15 +23,21 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <regex.h>
+#ifndef _WIN32
+	#include <regex.h>
+	#include <sys/ioctl.h>
+	#include <dlfcn.h>
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <time.h>
 #include <libgen.h>
 #include <dirent.h>
-#include <dlfcn.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "irq.h"
 #include "wiringX.h"
@@ -43,9 +49,12 @@
 #include "threads.h"
 
 static char *hwfile = NULL;
+struct hardware_t *hardware;
+struct conf_hardware_t *conf_hardware;
 
 #include "hardware_header.h"
 
+#ifndef _WIN32
 static void hardware_remove(char *name) {
 	struct hardware_t *currP, *prevP;
 
@@ -69,6 +78,7 @@ static void hardware_remove(char *name) {
 		}
 	}
 }
+#endif
 
 void hardware_register(struct hardware_t **hw) {
 	*hw = MALLOC(sizeof(struct hardware_t));
@@ -83,7 +93,8 @@ void hardware_register(struct hardware_t **hw) {
 
 	(*hw)->init = NULL;
 	(*hw)->deinit = NULL;
-	(*hw)->receive = NULL;
+	(*hw)->receiveOOK = NULL;
+	(*hw)->receivePulseTrain = NULL;
 	(*hw)->send = NULL;
 	(*hw)->gc = NULL;
 	(*hw)->settings = NULL;
@@ -216,7 +227,7 @@ static int hardware_parse(JsonNode *root) {
 					goto clear;
 				}
 				/* And only allow one module covering the same frequency */
-				if(tmp_confhw->hardware->type == hw->type) {
+				if(tmp_confhw->hardware->hwtype == hw->hwtype) {
 					logprintf(LOG_ERR, "config hardware module #%d \"%s\", duplicate freq.", i, jchilds->key);
 					have_error = 1;
 					goto clear;
@@ -238,13 +249,13 @@ static int hardware_parse(JsonNode *root) {
 					}
 					jvalues = jvalues->next;
 				}
-				if(!match) {
+				if(match == 0) {
 					logprintf(LOG_ERR, "config hardware module #%d \"%s\", setting \"%s\" missing", i, jchilds->key, hw_options->name);
 					have_error = 1;
 					goto clear;
 				} else {
 					/* Check if setting contains a valid value */
-#ifndef __FreeBSD__
+#if !defined(__FreeBSD__) && !defined(_WIN32)
 					regex_t regex;
 					int reti;
 					char *stmp = NULL;
@@ -264,20 +275,22 @@ static int hardware_parse(JsonNode *root) {
 						}
 						strcpy(stmp, jvalues->string_);
 					}
-					reti = regcomp(&regex, hw_options->mask, REG_EXTENDED);
-					if(reti) {
-						logprintf(LOG_ERR, "could not compile regex");
-						exit(EXIT_FAILURE);
-					}
-					reti = regexec(&regex, stmp, 0, NULL, 0);
-					if(reti == REG_NOMATCH || reti != 0) {
-						logprintf(LOG_ERR, "config hardware module #%d \"%s\", setting \"%s\" invalid", i, jchilds->key, hw_options->name);
-						have_error = 1;
+					if(hw_options->mask != NULL) {
+						reti = regcomp(&regex, hw_options->mask, REG_EXTENDED);
+						if(reti) {
+							logprintf(LOG_ERR, "could not compile regex");
+							exit(EXIT_FAILURE);
+						}
+						reti = regexec(&regex, stmp, 0, NULL, 0);
+						if(reti == REG_NOMATCH || reti != 0) {
+							logprintf(LOG_ERR, "config hardware module #%d \"%s\", setting \"%s\" invalid", i, jchilds->key, hw_options->name);
+							have_error = 1;
+							regfree(&regex);
+							goto clear;
+						}
+						FREE(stmp);
 						regfree(&regex);
-						goto clear;
 					}
-					FREE(stmp);
-					regfree(&regex);
 #endif
 				}
 				hw_options = hw_options->next;
@@ -301,7 +314,7 @@ static int hardware_parse(JsonNode *root) {
 						}
 						hw_options = hw_options->next;
 					}
-					if(!match) {
+					if(match == 0) {
 						logprintf(LOG_ERR, "config hardware module #%d \"%s\", setting \"%s\" invalid", i, jchilds->key, jvalues->key);
 						have_error = 1;
 						goto clear;
@@ -310,7 +323,7 @@ static int hardware_parse(JsonNode *root) {
 				jvalues = jvalues->next;
 			}
 
-			if(hw->settings) {
+			if(hw->settings != NULL) {
 				/* Sync all settings with the hardware module */
 				jvalues = json_first_child(jchilds);
 				while(jvalues) {
@@ -324,14 +337,13 @@ static int hardware_parse(JsonNode *root) {
 			}
 
 			hnode = MALLOC(sizeof(struct conf_hardware_t));
-			if(!hnode) {
+			if(hnode == NULL) {
 				logprintf(LOG_ERR, "out of memory");
 				exit(EXIT_FAILURE);
 			}
 			hnode->hardware = hw;
 			hnode->next = conf_hardware;
 			conf_hardware = hnode;
-
 		}
 		jchilds = jchilds->next;
 	}
@@ -353,16 +365,18 @@ void hardware_init(void) {
 	config_hardware->gc=&hardware_gc;
 
 	#include "hardware_init.h"
+
+#ifndef _WIN32
 	void *handle = NULL;
 	void (*init)(void);
 	void (*compatibility)(struct module_t *module);
 	char path[PATH_MAX];
 	struct module_t module;
-	char pilight_version[strlen(VERSION)+1];
+	char pilight_version[strlen(PILIGHT_VERSION)+1];
 	char pilight_commit[3];
 	char *hardware_root = NULL;
 	int check1 = 0, check2 = 0, valid = 1, hardware_root_free = 0;
-	strcpy(pilight_version, VERSION);
+	strcpy(pilight_version, PILIGHT_VERSION);
 
 	struct dirent *file = NULL;
 	DIR *d = NULL;
@@ -387,51 +401,52 @@ void hardware_init(void) {
 
 	if((d = opendir(hardware_root))) {
 		while((file = readdir(d)) != NULL) {
-			stat(file->d_name, &s);
-			/* Check if file */
-			if(S_ISREG(s.st_mode) == 1) {
-				if(strstr(file->d_name, ".so") != NULL) {
-					valid = 1;
-					memset(path, '\0', PATH_MAX);
-					sprintf(path, "%s%s", hardware_root, file->d_name);
+			memset(path, '\0', PATH_MAX);
+			sprintf(path, "%s%s", hardware_root, file->d_name);
+			if(stat(path, &s) == 0) {
+				/* Check if file */
+				if(S_ISREG(s.st_mode)) {
+					if(strstr(file->d_name, ".so") != NULL) {
+						valid = 1;
 
-					if((handle = dso_load(path)) != NULL) {
-						init = dso_function(handle, "init");
-						compatibility = dso_function(handle, "compatibility");
-						if(init != NULL && compatibility != NULL ) {
-							compatibility(&module);
-							if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
-								char ver[strlen(module.reqversion)+1];
-								strcpy(ver, module.reqversion);
+						if((handle = dso_load(path)) != NULL) {
+							init = dso_function(handle, "init");
+							compatibility = dso_function(handle, "compatibility");
+							if(init != NULL && compatibility != NULL ) {
+								compatibility(&module);
+								if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
+									char ver[strlen(module.reqversion)+1];
+									strcpy(ver, module.reqversion);
 
-								if((check1 = vercmp(ver, pilight_version)) > 0) {
-									valid = 0;
-								}
-								if(check1 == 0 && module.reqcommit != NULL) {
-									char com[strlen(module.reqcommit)+1];
-									strcpy(com, module.reqcommit);
-									sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
-
-									if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+									if((check1 = vercmp(ver, pilight_version)) > 0) {
 										valid = 0;
 									}
-								}
+									if(check1 == 0 && module.reqcommit != NULL) {
+										char com[strlen(module.reqcommit)+1];
+										strcpy(com, module.reqcommit);
+										sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
 
-								if(valid == 1) {
-									char tmp[strlen(module.name)+1];
-									strcpy(tmp, module.name);
-									hardware_remove(tmp);
-									init();
-									logprintf(LOG_DEBUG, "loaded config hardware module %s v%s", file->d_name, module.version);
-								} else {
-									if(module.reqcommit != NULL) {
-										logprintf(LOG_ERR, "config hardware module %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
-									} else {
-										logprintf(LOG_ERR, "config hardware module %s requires at least pilight v%s", file->d_name, module.reqversion);
+										if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+											valid = 0;
+										}
 									}
+
+									if(valid == 1) {
+										char tmp[strlen(module.name)+1];
+										strcpy(tmp, module.name);
+										hardware_remove(tmp);
+										init();
+										logprintf(LOG_DEBUG, "loaded config hardware module %s v%s", file->d_name, module.version);
+									} else {
+										if(module.reqcommit != NULL) {
+											logprintf(LOG_ERR, "config hardware module %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
+										} else {
+											logprintf(LOG_ERR, "config hardware module %s requires at least pilight v%s", file->d_name, module.reqversion);
+										}
+									}
+								} else {
+									logprintf(LOG_ERR, "invalid module %s", file->d_name);
 								}
-							} else {
-								logprintf(LOG_ERR, "invalid module %s", file->d_name);
 							}
 						}
 					}
@@ -443,4 +458,5 @@ void hardware_init(void) {
 	if(hardware_root_free) {
 		FREE(hardware_root);
 	}
+#endif
 }

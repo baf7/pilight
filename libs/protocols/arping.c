@@ -33,8 +33,17 @@
 #include <netinet/if_ether.h>
 #include <ctype.h>
 #include <pcap.h>
+#ifdef _WIN32
+	#include "pthread.h"
+	#include "implement.h"
+#else
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "arp.h"
 #include "common.h"
 #include "dso.h"
@@ -62,8 +71,8 @@ static void *arpingParse(void *param) {
 	struct JsonNode *jchild = NULL;
 	struct in_addr if_network;
 	struct in_addr if_netmask;
-	char *srcmac = NULL, tmpip[17], dstip[17];
-	char ip[17], *p = ip, *if_name = NULL;
+	char *srcmac = NULL, tmpip[INET_ADDRSTRLEN+1], dstip[INET_ADDRSTRLEN+1], buf[INET_ADDRSTRLEN+1];
+	char ip[INET_ADDRSTRLEN+1], *p = ip, *if_name = NULL;
 	double itmp = 0.0;
 	int state = 0, nrloops = 0, interval = INTERVAL, i = 0, srcip[4];
 
@@ -82,8 +91,8 @@ static void *arpingParse(void *param) {
 	if(json_find_number(json, "poll-interval", &itmp) == 0)
 		interval = (int)round(itmp);
 
-	memset(dstip, '\0', 17);
-	memset(tmpip, '\0', 17);
+	memset(dstip, '\0', INET_ADDRSTRLEN+1);
+	memset(tmpip, '\0', INET_ADDRSTRLEN+1);
 
 	for(i=0;i<strlen(srcmac);i++) {
 		srcmac[i] = (char)tolower(srcmac[i]);
@@ -99,7 +108,10 @@ static void *arpingParse(void *param) {
 		return NULL;
 	}
 
-	if(sscanf(inet_ntoa(if_network), "%d.%d.%d.%d", &srcip[0], &srcip[1], &srcip[2], &srcip[3]) != 4) {
+
+	memset(&buf, '\0', INET_ADDRSTRLEN+1);
+	inet_ntop(AF_INET, (void *)&if_network, buf, INET_ADDRSTRLEN+1);
+	if(sscanf(buf, "%d.%d.%d.%d", &srcip[0], &srcip[1], &srcip[2], &srcip[3]) != 4) {
 		logprintf(LOG_ERR, "could not extract ip address");
 	}
 
@@ -108,7 +120,7 @@ static void *arpingParse(void *param) {
 			pthread_mutex_lock(&arpinglock);
 			if(strlen(dstip) == 0) {
 				for(i=0;i<255;i++) {
-					memset(ip, '\0', 17);
+					memset(ip, '\0', INET_ADDRSTRLEN+1);
 					snprintf(ip, sizeof(ip), "%d.%d.%d.%d", srcip[0], srcip[1], srcip[2], i);
 					arp_add_host(ip);
 				}
@@ -120,7 +132,7 @@ static void *arpingParse(void *param) {
 					strcpy(dstip, ip);
 				}
 				if(strcmp(dstip, ip) != 0) {
-					memset(dstip, '\0', 17);
+					memset(dstip, '\0', INET_ADDRSTRLEN+1);
 					logprintf(LOG_NOTICE, "ip address changed from %s to %s", dstip, ip);
 					strcpy(dstip, ip);
 				}
@@ -136,7 +148,9 @@ static void *arpingParse(void *param) {
 					json_append_member(arping->message, "origin", json_mkstring("receiver"));
 					json_append_member(arping->message, "protocol", json_mkstring(arping->id));
 
-					pilight.broadcast(arping->id, arping->message);
+					if(pilight.broadcast != NULL) {
+						pilight.broadcast(arping->id, arping->message);
+					}
 					json_delete(arping->message);
 					arping->message = NULL;
 				}
@@ -153,7 +167,9 @@ static void *arpingParse(void *param) {
 				json_append_member(arping->message, "origin", json_mkstring("receiver"));
 				json_append_member(arping->message, "protocol", json_mkstring(arping->id));
 
-				pilight.broadcast(arping->id, arping->message);
+				if(pilight.broadcast != NULL) {
+					pilight.broadcast(arping->id, arping->message);
+				}
 				json_delete(arping->message);
 				arping->message = NULL;
 			}
@@ -198,7 +214,7 @@ static int arpingCheckValues(JsonNode *code) {
 	return 0;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arpingInit(void) {
@@ -212,6 +228,9 @@ void arpingInit(void) {
 	arping->devtype = PING;
 	arping->hwtype = API;
 	arping->multipleId = 0;
+#ifdef PILIGHT_V6
+	arping->masterOnly = 1;
+#endif
 
 	options_add(&arping->options, 'c', "connected", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&arping->options, 'd', "disconnected", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
@@ -225,10 +244,10 @@ void arpingInit(void) {
 	arping->checkValues=&arpingCheckValues;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arping";
-	module->version = "1.2";
+	module->version = "1.3";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

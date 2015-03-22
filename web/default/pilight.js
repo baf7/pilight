@@ -444,6 +444,7 @@ function createWeatherElement(sTabId, sDevId, aValues) {
 		if('show-wind' in aValues && aValues['show-wind']) {
 			oTab.find('#'+sDevId+'_weather').append($('<div class="windavg_icon"></div><div class="windavg" id="'+sDevId+'_windavg"></div>'));
 			oTab.find('#'+sDevId+'_weather').append($('<div class="windgust_icon"></div><div class="winddir_icon"></div><div class="windgust" id="'+sDevId+'_windgust"></div>'));
+			$('#'+sDevId+'_weather .winddir_icon').css({transform: 'rotate(' + aValues['winddir'] + 'deg)'});
 		}
 		if('show-humidity' in aValues && aValues['show-humidity']) {
 			oTab.find('#'+sDevId+'_weather').append($('<div class="humidity_icon"></div><div class="humidity" id="'+sDevId+'_humi"></div>'));
@@ -977,13 +978,19 @@ function parseValues(data) {
 function parseData(data) {
 	if(data.hasOwnProperty("gui") && data.hasOwnProperty("devices")) {
 		createGUI(data);
-		if('registry' in data && 'pilight' in data['registry'] &&
-		   'version' in data['registry']['pilight']) {
-			if('current' in data['registry']['pilight']['version']) {
-				iPLVersion = data['registry']['pilight']['version']['current'];
+		if('registry' in data && 'pilight' in data['registry']) {
+			if('version' in data['registry']['pilight']) {
+				if('current' in data['registry']['pilight']['version']) {
+					iPLVersion = data['registry']['pilight']['version']['current'];
+				}
+				if('available' in data['registry']['pilight']['version']) {
+					iNPLVersion = data['registry']['pilight']['version']['available'];
+				}
 			}
-			if('available' in data['registry']['pilight']['version']) {
-				iNPLVersion = data['registry']['pilight']['version']['available'];
+			if('firmware' in data['registry']['pilight']) {
+				if('version' in data['registry']['pilight']['firmware']) {
+					iFWVersion = data['registry']['pilight']['firmware']['version'];
+				}
 			}
 			updateVersions();
 		}

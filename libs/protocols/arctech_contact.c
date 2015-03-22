@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -56,7 +56,7 @@ static void arctechContactParseBinary(void) {
 	arctechContactCreateMessage(id, unit, state, all);
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arctechContactInit(void) {
@@ -65,13 +65,13 @@ void arctechContactInit(void) {
 	protocol_set_id(arctech_contact, "arctech_contact");
 	protocol_device_add(arctech_contact, "kaku_contact", "KlikAanKlikUit Contact Sensor");
 	protocol_device_add(arctech_contact, "dio_contact", "D-IO Contact Sensor");
+	protocol_plslen_add(arctech_contact, 315);
 	protocol_plslen_add(arctech_contact, 294);
 	protocol_plslen_add(arctech_contact, 305);
-	protocol_plslen_add(arctech_contact, 294);
 
 	arctech_contact->devtype = CONTACT;
 	arctech_contact->hwtype = RF433;
-	arctech_contact->pulse = 4;
+	arctech_contact->pulse = 5;
 	arctech_contact->rawlen = 140;
 	arctech_contact->minrawlen = 132;
 	arctech_contact->maxrawlen = 148;
@@ -88,7 +88,7 @@ void arctechContactInit(void) {
 	arctech_contact->parseBinary=&arctechContactParseBinary;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_contact";
 	module->version = "1.3";

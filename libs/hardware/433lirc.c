@@ -34,7 +34,7 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -189,7 +189,7 @@ static int lirc433gc(void) {
 	return 1;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void lirc433Init(void) {
@@ -199,16 +199,17 @@ void lirc433Init(void) {
 
 	options_add(&lirc433->options, 's', "socket", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_STRING, NULL, "^/dev/([a-z]+)[0-9]+$");
 
-	lirc433->type=RF433;
+	lirc433->hwtype=RF433;
+	lirc433->comtype=COMOOK;
 	lirc433->init=&lirc433HwInit;
 	lirc433->deinit=&lirc433HwDeinit;
 	lirc433->send=&lirc433Send;
-	lirc433->receive=&lirc433Receive;
+	lirc433->receiveOOK=&lirc433Receive;
 	lirc433->settings=&lirc433Settings;
 	lirc433->gc=&lirc433gc;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "433lirc";
 	module->version = "1.3";

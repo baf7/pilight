@@ -29,7 +29,7 @@
 #include "dso.h"
 #include "http.h"
 #include "common.h"
-#include "../../pilight.h"
+#include "pilight.h"
 
 static int actionPushoverArguments(struct JsonNode *arguments) {
 	struct JsonNode *jtitle = NULL;
@@ -86,7 +86,7 @@ static int actionPushoverArguments(struct JsonNode *arguments) {
 		return -1;
 	}
 	nrvalues = 0;
-	if((jtoken = json_find_member(jmessage, "value")) != NULL) {
+	if((jvalues = json_find_member(jtoken, "value")) != NULL) {
 		jchild = json_first_child(jvalues);
 		while(jchild) {
 			nrvalues++;
@@ -160,7 +160,7 @@ static int actionPushoverRun(struct JsonNode *arguments) {
 				l += strlen("&message=")+strlen("&title=");
 				char content[l+2];
 				sprintf(content, "token=%s&user=%s&title=%s&message=%s", token, user, title, message);
-				data = http_post_content(url, &tp, &ret, &size, content);
+				data = http_post_content(url, &tp, &ret, &size, "application/x-www-form-urlencoded", content);
 				if(ret == 200) {
 					logprintf(LOG_DEBUG, "pushover action succeeded with message: %s", data);
 				} else {
@@ -170,14 +170,16 @@ static int actionPushoverRun(struct JsonNode *arguments) {
 				FREE(token);
 				FREE(user);
 				FREE(title);
-				FREE(data);
+				if(data != NULL) {
+					FREE(data);
+				}
 			}
 		}
 	}
 	return 0;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void actionPushoverInit(void) {
@@ -192,10 +194,10 @@ void actionPushoverInit(void) {
 	action_pushover->checkArguments = &actionPushoverArguments;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "pushover";
-	module->version = "1.0";
+	module->version = "1.1";
 	module->reqversion = "5.0";
 	module->reqcommit = "87";
 }

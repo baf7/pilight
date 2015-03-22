@@ -21,7 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -33,13 +33,11 @@
 
 static int gpio_433_in = 0;
 static int gpio_433_out = 0;
-static int gpio_433_initialized = 0;
 
 static unsigned short gpio433HwInit(void) {
 	if(wiringXSetup() == -1) {
 		return EXIT_FAILURE;
 	}
-	gpio_433_initialized = 1;
 	if(gpio_433_out >= 0) {
 		if(wiringXValidGPIO(gpio_433_out) != 0) {
 			logprintf(LOG_ERR, "invalid sender pin: %d", gpio_433_out);
@@ -111,7 +109,7 @@ static unsigned short gpio433Settings(JsonNode *json) {
 	return EXIT_SUCCESS;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void gpio433Init(void) {
@@ -121,15 +119,16 @@ void gpio433Init(void) {
 	options_add(&gpio433->options, 'r', "receiver", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9-]+$");
 	options_add(&gpio433->options, 's', "sender", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9-]+$");
 
-	gpio433->type=RF433;
+	gpio433->hwtype=RF433;
+	gpio433->comtype=COMOOK;
 	gpio433->init=&gpio433HwInit;
 	gpio433->deinit=&gpio433HwDeinit;
 	gpio433->send=&gpio433Send;
-	gpio433->receive=&gpio433Receive;
+	gpio433->receiveOOK=&gpio433Receive;
 	gpio433->settings=&gpio433Settings;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "433gpio";
 	module->version = "1.2";

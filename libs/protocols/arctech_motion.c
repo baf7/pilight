@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -55,7 +55,7 @@ static void arctechMotionParseBinary(void) {
 	arctechMotionCreateMessage(id, unit, state, all);
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arctechMotionInit(void) {
@@ -67,7 +67,7 @@ void arctechMotionInit(void) {
 
 	arctech_motion->devtype = MOTION;
 	arctech_motion->hwtype = RF433;
-	arctech_motion->pulse = 4;
+	arctech_motion->pulse = 5;
 	arctech_motion->rawlen = 132;
 	arctech_motion->lsb = 3;
 
@@ -76,16 +76,13 @@ void arctechMotionInit(void) {
 	options_add(&arctech_motion->options, 't', "on", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&arctech_motion->options, 'f', "off", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 
-	options_add(&arctech_motion->options, 'a', "all", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-	options_add(&arctech_motion->options, 0, "readonly", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-
 	arctech_motion->parseBinary=&arctechMotionParseBinary;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_motion";
-	module->version = "1.0";
+	module->version = "1.2";
 	module->reqversion = "5.0";
 	module->reqcommit = "99";
 }

@@ -21,7 +21,6 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
 #include <time.h>
@@ -36,21 +35,30 @@
 #include "log.h"
 #include "options.h"
 #include "firmware.h"
-#include "wiringX.h"
+
+#ifndef _WIN32
+	#include "wiringX.h"
+#endif
 
 int main(int argc, char **argv) {
 	// memtrack();
 
+	atomicinit();
 	log_shell_enable();
 	log_file_disable();
 	log_level_set(LOG_DEBUG);
 
+#ifndef _WIN32
 	wiringXLog = logprintf;
+#endif
 
 	struct options_t *options = NULL;
 	char *configtmp = MALLOC(strlen(CONFIG_FILE)+1);
 	char *args = NULL;
-	char fwfile[4096] = {'\0'};
+	char *fwfile = NULL;
+	char comport[255];
+	
+	memset(&comport, '\0', 255);
 
 	strcpy(configtmp, CONFIG_FILE);
 
@@ -65,6 +73,7 @@ int main(int argc, char **argv) {
 	options_add(&options, 'V', "version", OPTION_NO_VALUE, 0, JSON_NULL, NULL, NULL);
 	options_add(&options, 'C', "config", OPTION_HAS_VALUE, 0, JSON_NULL, NULL, NULL);
 	options_add(&options, 'f', "file", OPTION_HAS_VALUE, 0, JSON_NULL, NULL, NULL);
+	options_add(&options, 'p', "comport", OPTION_HAS_VALUE, 0, JSON_NULL, NULL, NULL);
 
 	while (1) {
 		int c;
@@ -78,20 +87,25 @@ int main(int argc, char **argv) {
 				printf("Usage: %s [options]\n", progname);
 				printf("\t -H --help\t\tdisplay usage summary\n");
 				printf("\t -V --version\t\tdisplay version\n");
-				printf("\t -C --config\t\t\tconfig file\n");
+				printf("\t -C --config\t\tconfig file\n");
+				printf("\t -p --comport\t\tserial COM port\n");
 				printf("\t -f --file=firmware\tfirmware file\n");
 				goto close;
 			break;
 			case 'V':
-				printf("%s %s\n", progname, VERSION);
+				printf("%s v%s\n", progname, PILIGHT_VERSION);
 				goto close;
 			break;
 			case 'C':
 				configtmp = REALLOC(configtmp, strlen(args)+1);
 				strcpy(configtmp, args);
 			break;
+			case 'p':
+				strcpy(comport, args);
+			break;			
 			case 'f':
 				if(access(args, F_OK) != -1) {
+					fwfile = REALLOC(fwfile, strlen(args)+1);
 					strcpy(fwfile, args);
 				} else {
 					fprintf(stderr, "%s: the firmware file %s does not exists\n", progname, args);
@@ -104,11 +118,9 @@ int main(int argc, char **argv) {
 			break;
 		}
 	}
-	options_delete(options);
 
-#ifdef FIRMWARE_UPDATER
 	if(config_set_file(configtmp) == EXIT_FAILURE) {
-		return EXIT_FAILURE;
+		goto close;
 	}
 
 	protocol_init();
@@ -117,36 +129,50 @@ int main(int argc, char **argv) {
 		FREE(configtmp);
 		goto close;
 	}
-	FREE(configtmp);
 
-	if(strlen(fwfile) == 0) {
-		printf("Usage: %s -f pilight_firmware_tX5_vX.hex\n", progname);
+#ifdef _WIN32
+	if(fwfile == NULL || strlen(fwfile) == 0 || strlen(comport) == 0) {
+		printf("Usage: %s -f pilight_firmware_XXX_vX.hex -p comX\n", progname);
 		goto close;
 	}
+#else
+	if(fwfile == NULL || strlen(fwfile) == 0) {
+		printf("Usage: %s -f pilight_firmware_XXX_vX.hex\n", progname);
+		goto close;
+	}
+#endif
 
 	firmware.version = 0;
 	logprintf(LOG_INFO, "**** START UPD. FW ****");
-	firmware_getmp();
-	if(firmware_update(fwfile) != 0) {
+	firmware_getmp(comport);
+
+	if(firmware_update(fwfile, comport) != 0) {
 		logprintf(LOG_INFO, "**** FAILED UPD. FW ****");
 	} else {
 		logprintf(LOG_INFO, "**** DONE UPD. FW ****");
 	}
-#else
-	logprintf(LOG_ERR, "pilight was compiled without firmware flashing support");
-#endif
 
 close:
+	log_shell_disable();
+	options_delete(options);
+	if(fwfile != NULL) {
+		FREE(fwfile);
+	}
+	if(configtmp != NULL) {
+		FREE(configtmp);
+	}
 	log_shell_disable();
 	log_level_set(LOG_ERR);
 	config_gc();
 	protocol_gc();
+	options_gc();
 	event_operator_gc();
 	event_action_gc();
-	options_gc();
-	threads_gc();
+#ifndef _WIN32
 	wiringXGC();
+#endif
 	log_gc();
+	threads_gc();
 	gc_clear();
 	FREE(progname);
 	xfree();

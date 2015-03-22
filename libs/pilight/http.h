@@ -20,6 +20,6 @@
 #define _HTTP_H_
 
 char *http_get_content(char *url, char **type, int *code, int *size);
-char *http_post_content(char *url, char **type, int *code, int *size, char *post);
+char *http_post_content(char *url, char **type, int *code, int *size, const char *contype, char *post);
 
 #endif

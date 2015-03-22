@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -37,6 +37,7 @@
 static unsigned short gpio_switch_loop = 1;
 static int gpio_switch_threads = 0;
 
+#if !defined(__FreeBSD__) && !defined(_WIN32)
 static void gpioSwitchCreateMessage(int gpio, int state) {
 	gpio_switch->message = json_mkobject();
 	JsonNode *code = json_mkobject();
@@ -51,7 +52,9 @@ static void gpioSwitchCreateMessage(int gpio, int state) {
 	json_append_member(gpio_switch->message, "origin", json_mkstring("receiver"));
 	json_append_member(gpio_switch->message, "protocol", json_mkstring(gpio_switch->id));
 
-	pilight.broadcast(gpio_switch->id, gpio_switch->message);
+	if(pilight.broadcast != NULL) {
+		pilight.broadcast(gpio_switch->id, gpio_switch->message);
+	}
 	json_delete(gpio_switch->message);
 	gpio_switch->message = NULL;
 }
@@ -107,8 +110,12 @@ static struct threadqueue_t *gpioSwitchInitDev(JsonNode *jdevice) {
 
 static int gpioSwitchCheckValues(struct JsonNode *jvalues) {
 	struct JsonNode *jid = NULL;
+	double readonly = 0.0;
 
-	if((jid = json_find_member(jvalues, "id"))) {
+	if(wiringXSetup() < 0) {
+		logprintf(LOG_ERR, "unable to setup wiringX") ;
+		return -1;
+	} else if((jid = json_find_member(jvalues, "id"))) {
 		struct JsonNode *jchild = NULL;
 		struct JsonNode *jchild1 = NULL;
 
@@ -126,6 +133,11 @@ static int gpioSwitchCheckValues(struct JsonNode *jvalues) {
 			jchild = jchild->next;
 		}
 	}
+	if(json_find_number(jvalues, "readonly", &readonly) == 0) {
+		if((int)readonly != 1) {
+			return -1;
+		}
+	}
 	return 0;
 }
 
@@ -137,8 +149,9 @@ static void gpioSwitchThreadGC(void) {
 	}
 	protocol_thread_free(gpio_switch);
 }
+#endif
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void gpioSwitchInit(void) {
@@ -153,17 +166,19 @@ void gpioSwitchInit(void) {
 	options_add(&gpio_switch->options, 'f', "off", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&gpio_switch->options, 'g', "gpio", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-9]{1}|1[0-9]|20)$");
 
-	options_add(&gpio_switch->options, 0, "readonly", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&gpio_switch->options, 0, "readonly", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 
+#if !defined(__FreeBSD__) && !defined(_WIN32)
 	gpio_switch->initDev=&gpioSwitchInitDev;
 	gpio_switch->threadGC=&gpioSwitchThreadGC;
 	gpio_switch->checkValues=&gpioSwitchCheckValues;
+#endif
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "gpio_switch";
-	module->version = "1.3";
+	module->version = "1.4";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

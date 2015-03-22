@@ -32,7 +32,7 @@
 #include <time.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "../pilight/datetime.h" // Full path because we also have a datetime protocol
@@ -111,7 +111,7 @@ static void *sunRiseSetParse(void *param) {
 	struct JsonNode *jchild1 = NULL;
 	char *tz = NULL;
 	double longitude = 0, latitude = 0;
-	char UTC[] = "Europe/London";
+	char UTC[] = "UTC";
 
 	time_t timenow = 0;
 	struct tm *current = NULL;
@@ -200,7 +200,9 @@ static void *sunRiseSetParse(void *param) {
 			json_append_member(sunriseset->message, "origin", json_mkstring("receiver"));
 			json_append_member(sunriseset->message, "protocol", json_mkstring(sunriseset->id));
 
-			pilight.broadcast(sunriseset->id, sunriseset->message);
+			if(pilight.broadcast != NULL) {
+				pilight.broadcast(sunriseset->id, sunriseset->message);
+			}
 			json_delete(sunriseset->message);
 			sunriseset->message = NULL;
 			firstrun = 0;
@@ -241,7 +243,7 @@ static int sunRiseSetCheckValues(JsonNode *code) {
 	return 0;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void sunRiseSetInit(void) {
@@ -252,6 +254,9 @@ void sunRiseSetInit(void) {
 	sunriseset->devtype = WEATHER;
 	sunriseset->hwtype = API;
 	sunriseset->multipleId = 0;
+#ifdef PILIGHT_V6
+	sunriseset->masterOnly = 1;
+#endif
 
 	options_add(&sunriseset->options, 'o', "longitude", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, NULL);
 	options_add(&sunriseset->options, 'a', "latitude", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, NULL);
@@ -268,10 +273,10 @@ void sunRiseSetInit(void) {
 	sunriseset->checkValues=&sunRiseSetCheckValues;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "sunriseset";
-	module->version = "1.2";
+	module->version = "1.4";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

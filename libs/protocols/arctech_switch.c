@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -182,11 +182,10 @@ static void arctechSwPrintHelp(void) {
 	printf("\t -a --all\t\t\tsend command to all devices with this id\n");
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arctechSwInit(void) {
-
 	protocol_register(&arctech_switch);
 	protocol_set_id(arctech_switch, "arctech_switch");
 	protocol_device_add(arctech_switch, "kaku_switch", "KlikAanKlikUit Switches");
@@ -203,6 +202,7 @@ void arctechSwInit(void) {
 	arctech_switch->pulse = 5;
 	arctech_switch->rawlen = 132;
 	arctech_switch->lsb = 3;
+
 	options_add(&arctech_switch->options, 't', "on", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&arctech_switch->options, 'f', "off", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&arctech_switch->options, 'u', "unit", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-9]{1}|[1][0-5])$");
@@ -216,7 +216,7 @@ void arctechSwInit(void) {
 	arctech_switch->printHelp=&arctechSwPrintHelp;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_switch";
 	module->version = "1.1";

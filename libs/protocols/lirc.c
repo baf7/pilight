@@ -26,17 +26,25 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <sys/un.h>
-#include <netdb.h>
+#ifdef _WIN32
+	#include <winsock2.h>
+	#include <ws2tcpip.h>
+	#define MSG_NOSIGNAL 0
+#else
+	#include <sys/socket.h>
+	#include <sys/time.h>
+	#include <sys/un.h>
+	#include <netinet/in.h>
+	#include <netinet/tcp.h>
+	#include <netdb.h>
+	#include <arpa/inet.h>
+#endif
 #include <stdint.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
+#include "socket.h"
 #include "dso.h"
 #include "log.h"
 #include "threads.h"
@@ -47,12 +55,22 @@
 #include "gc.h"
 #include "lirc.h"
 
+#ifndef _WIN32
 static char lirc_socket[BUFFER_SIZE];
 static int lirc_sockfd = -1;
 
 static unsigned short lirc_loop = 1;
 static unsigned short lirc_threads = 0;
 static unsigned short lirc_init = 0;
+
+
+// Windows
+// #define UNIX_PATH_MAX 108
+
+// struct sockaddr_un {
+	// uint16_t sun_family;
+	// char sun_path[UNIX_PATH_MAX];
+// };
 
 static void *lircParse(void *param) {
 	struct protocol_threads_t *node = (struct protocol_threads_t *)param;
@@ -88,9 +106,24 @@ static void *lircParse(void *param) {
 			strcpy(addr.sun_path, lirc_socket);
 
 			/* Connect to the server */
-			if(connect(lirc_sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-				protocol_thread_wait(node, 3, &nrloops);
-				continue;
+			switch(socket_timeout_connect(lirc_sockfd, (struct sockaddr *)&addr, 3)) {
+				case -1:
+					logprintf(LOG_ERR, "could not connect to Lirc socket @%s", lirc_socket);
+					protocol_thread_wait(node, 3, &nrloops);
+					continue;
+				break;
+				case -2:
+					logprintf(LOG_ERR, "Lirc socket timeout @%s", lirc_socket);
+					protocol_thread_wait(node, 3, &nrloops);
+					continue;
+				break;
+				case -3:
+					logprintf(LOG_ERR, "Error in Lirc socket connection @%s", lirc_socket);
+					protocol_thread_wait(node, 3, &nrloops);
+					continue;
+				break;
+				default:
+				break;
 			}
 
 			while(lirc_loop) {
@@ -126,30 +159,42 @@ static void *lircParse(void *param) {
 								}
 							}
 							if(nrspace >= 3) {
-								char *code1 = strtok(recvBuff, " ");
-								char *rep = strtok(NULL, " ");
-								char *btn = strtok(NULL, " ");
-								char *remote = strtok(NULL, " ");
-								char *y = NULL;
-								if((y = strstr(remote, "\n")) != NULL) {
-									size_t pos = (size_t)(y-remote);
-									remote[pos] = '\0';
+								char **array = NULL;
+								unsigned int q = explode(recvBuff, " ", &array), h = 0;
+								if(q == 4) {
+									char *code1 = array[0];
+									char *rep = array[1];
+									char *btn = array[2];
+									char *remote = array[3];
+									char *y = NULL;
+									if((y = strstr(remote, "\n")) != NULL) {
+										size_t pos = (size_t)(y-remote);
+										remote[pos] = '\0';
+									}
+									int r = strtol(rep, NULL, 16);
+									lirc->message = json_mkobject();
+									JsonNode *code = json_mkobject();
+									json_append_member(code, "code", json_mkstring(code1));
+									json_append_member(code, "repeat", json_mknumber(r, 0));
+									json_append_member(code, "button", json_mkstring(btn));
+									json_append_member(code, "remote", json_mkstring(remote));
+
+									json_append_member(lirc->message, "message", code);
+									json_append_member(lirc->message, "origin", json_mkstring("receiver"));
+									json_append_member(lirc->message, "protocol", json_mkstring(lirc->id));
+
+									if(pilight.broadcast != NULL) {
+										pilight.broadcast(lirc->id, lirc->message);
+									}
+									json_delete(lirc->message);
+									lirc->message = NULL;
 								}
-								int r = strtol(rep, NULL, 16);
-								lirc->message = json_mkobject();
-								JsonNode *code = json_mkobject();
-								json_append_member(code, "code", json_mkstring(code1));
-								json_append_member(code, "repeat", json_mknumber(r, 0));
-								json_append_member(code, "button", json_mkstring(btn));
-								json_append_member(code, "remote", json_mkstring(remote));
-
-								json_append_member(lirc->message, "message", code);
-								json_append_member(lirc->message, "origin", json_mkstring("receiver"));
-								json_append_member(lirc->message, "protocol", json_mkstring(lirc->id));
-
-								pilight.broadcast(lirc->id, lirc->message);
-								json_delete(lirc->message);
-								lirc->message = NULL;
+								if(q > 0) {
+									for(h=0;h<q;h++) {
+										FREE(array[h]);
+									}
+									FREE(array);
+								}
 							}
 							memset(recvBuff, '\0', BUFFER_SIZE);
 						}
@@ -172,6 +217,7 @@ static void *lircParse(void *param) {
 
 struct threadqueue_t *lircInitDev(JsonNode *jdevice) {
 	lirc_loop = 1;
+	
 	if(lirc_init == 0) {
 		lirc_init = 1;
 		struct protocol_threads_t *node = protocol_thread_init(lirc, NULL);
@@ -190,8 +236,9 @@ static void lircThreadGC(void) {
 	protocol_thread_free(lirc);
 	lirc_init = 0;
 }
+#endif
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void lircInit(void) {
@@ -206,20 +253,21 @@ void lircInit(void) {
 	options_add(&lirc->options, 'b', "button", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_STRING, NULL, NULL);
 	options_add(&lirc->options, 'r', "remote", OPTION_HAS_VALUE, DEVICES_ID, JSON_STRING, NULL, NULL);
 
+#ifndef _WIN32
 	lirc->initDev=&lircInitDev;
 	lirc->threadGC=&lircThreadGC;
-	lirc->initDev(NULL);
 
 	memset(lirc_socket, '\0', BUFFER_SIZE);
 	strcpy(lirc_socket, "/dev/lircd");
+#endif
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "lirc";
-	module->version = "1.2";
+	module->version = "1.6";
 	module->reqversion = "5.0";
-	module->reqcommit = "84";
+	module->reqcommit = "266";
 }
 
 void init(void) {

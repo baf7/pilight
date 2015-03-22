@@ -19,14 +19,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <regex.h>
 #include <dirent.h>
-#include <dlfcn.h>
-#include <pthread.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+	#include "pthread.h"
+	#include "implement.h"
+#else
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "dso.h"
@@ -37,6 +44,9 @@
 
 #include "protocol_header.h"
 
+struct protocols_t *protocols;
+
+#ifndef _WIN32
 void protocol_remove(char *name) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
@@ -91,21 +101,24 @@ void protocol_remove(char *name) {
 		}
 	}
 }
+#endif
 
 void protocol_init(void) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
 	#include "protocol_init.h"
+
+#ifndef _WIN32
 	void *handle = NULL;
 	void (*init)(void);
 	void (*compatibility)(struct module_t *module);
 	char path[PATH_MAX];
 	struct module_t module;
-	char pilight_version[strlen(VERSION)+1];
+	char pilight_version[strlen(PILIGHT_VERSION)+1];
 	char pilight_commit[3];
 	char *protocol_root = NULL;
 	int check1 = 0, check2 = 0, valid = 1, protocol_root_free = 0;
-	strcpy(pilight_version, VERSION);
+	strcpy(pilight_version, PILIGHT_VERSION);
 
 	struct dirent *file = NULL;
 	DIR *d = NULL;
@@ -129,55 +142,58 @@ void protocol_init(void) {
 
 	if((d = opendir(protocol_root))) {
 		while((file = readdir(d)) != NULL) {
-			stat(file->d_name, &s);
-			/* Check if file */
-			if(S_ISREG(s.st_mode) == 1) {
-				if(strstr(file->d_name, ".so") != NULL) {
-					valid = 1;
-					memset(path, '\0', PATH_MAX);
-					sprintf(path, "%s%s", protocol_root, file->d_name);
-					if((handle = dso_load(path)) != NULL) {
+			memset(path, '\0', PATH_MAX);
+			sprintf(path, "%s%s", protocol_root, file->d_name);
+			if(stat(path, &s) == 0) {
+				/* Check if file */
+				if(S_ISREG(s.st_mode)) {
+					if(strstr(file->d_name, ".so") != NULL) {
+						valid = 1;
+						if((handle = dso_load(path)) != NULL) {
 
-						init = dso_function(handle, "init");
-						compatibility = dso_function(handle, "compatibility");
-						if(init != NULL && compatibility != NULL) {
-							compatibility(&module);
-							if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
-								char ver[strlen(module.reqversion)+1];
-								strcpy(ver, module.reqversion);
+							init = dso_function(handle, "init");
+							compatibility = dso_function(handle, "compatibility");
+							if(init != NULL && compatibility != NULL) {
+								compatibility(&module);
+								if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
+									char ver[strlen(module.reqversion)+1];
+									strcpy(ver, module.reqversion);
 
-								if((check1 = vercmp(ver, pilight_version)) > 0) {
-									valid = 0;
-								}
-
-								if(check1 == 0 && module.reqcommit != NULL) {
-									char com[strlen(module.reqcommit)+1];
-									strcpy(com, module.reqcommit);
-									sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
-
-									if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+									if((check1 = vercmp(ver, pilight_version)) > 0) {
 										valid = 0;
 									}
-								}
-								if(valid == 1) {
-									char tmp[strlen(module.name)+1];
-									strcpy(tmp, module.name);
-									protocol_remove(tmp);
-									init();
-									logprintf(LOG_DEBUG, "loaded protocol %s v%s", file->d_name, module.version);
-								} else {
-									if(module.reqcommit != NULL) {
-										logprintf(LOG_ERR, "protocol %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
-									} else {
-										logprintf(LOG_ERR, "protocol %s requires at least pilight v%s", file->d_name, module.reqversion);
+
+									if(check1 == 0 && module.reqcommit != NULL) {
+										char com[strlen(module.reqcommit)+1];
+										strcpy(com, module.reqcommit);
+										sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
+
+										if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+											valid = 0;
+										}
 									}
+									if(valid == 1) {
+										char tmp[strlen(module.name)+1];
+										strcpy(tmp, module.name);
+										protocol_remove(tmp);
+										init();
+										logprintf(LOG_DEBUG, "loaded protocol %s v%s", file->d_name, module.version);
+									} else {
+										if(module.reqcommit != NULL) {
+											logprintf(LOG_ERR, "protocol %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
+										} else {
+											logprintf(LOG_ERR, "protocol %s requires at least pilight v%s", file->d_name, module.reqversion);
+										}
+									}
+								} else {
+									logprintf(LOG_ERR, "invalid module %s", file->d_name);
 								}
-							} else {
-								logprintf(LOG_ERR, "invalid module %s", file->d_name);
 							}
 						}
 					}
 				}
+			} else {
+				perror("stat");
 			}
 		}
 		closedir(d);
@@ -185,12 +201,13 @@ void protocol_init(void) {
 	if(protocol_root_free) {
 		FREE(protocol_root);
 	}
+#endif
 }
 
 void protocol_register(protocol_t **proto) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	if(!(*proto = MALLOC(sizeof(struct protocol_t)))) {
+	if((*proto = MALLOC(sizeof(struct protocol_t))) == NULL) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}
@@ -209,6 +226,7 @@ void protocol_register(protocol_t **proto) {
 	(*proto)->rxrpt = 1;
 	(*proto)->multipleId = 1;
 	(*proto)->config = 1;
+	(*proto)->masterOnly = 0;
 	(*proto)->parseRaw = NULL;
 	(*proto)->parseBinary = NULL;
 	(*proto)->parseCode = NULL;
@@ -231,7 +249,7 @@ void protocol_register(protocol_t **proto) {
 	memset(&(*proto)->binary[0], 0, sizeof((*proto)->binary));
 
 	struct protocols_t *pnode = MALLOC(sizeof(struct protocols_t));
-	if(!pnode) {
+	if(pnode == NULL) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}

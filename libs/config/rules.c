@@ -26,7 +26,7 @@
 #include <time.h>
 #include <libgen.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "json.h"
 #include "rules.h"
@@ -39,7 +39,8 @@
 static struct rules_t *rules = NULL;
 
 static int rules_parse(JsonNode *root) {
-	int have_error = 0, i = 0, match = 0;
+	int have_error = 0, match = 0;
+	unsigned int i = 0;
 	struct JsonNode *jrules = NULL;
 	char *rule = NULL;
 	double active = 1.0;
@@ -83,7 +84,7 @@ static int rules_parse(JsonNode *root) {
 					node->devices = NULL;
 					node->action = NULL;
 					node->arguments = NULL;
-					if(event_parse_rule(rule, node, 0, 1, 1) == -1) {
+					if(event_parse_rule(rule, node, 0, i, 1) == -1) {
 						for(i=0;i<node->nrdevices;i++) {
 							FREE(node->devices[i]);
 						}

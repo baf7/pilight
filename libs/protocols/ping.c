@@ -26,8 +26,17 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <math.h>
+#ifdef _WIN32
+	#include "pthread.h"
+	#include "implement.h"
+#else
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "../pilight/ping.h"
 #include "common.h"
 #include "dso.h"
@@ -53,6 +62,7 @@ static void *pingParse(void *param) {
 	struct JsonNode *jid = NULL;
 	struct JsonNode *jchild = NULL;
 	char *ip = NULL;
+	char *pstate = NULL;
 	double itmp = 0.0;
 	int state = 0, nrloops = 0, interval = 1;
 
@@ -71,6 +81,11 @@ static void *pingParse(void *param) {
 	if(json_find_number(json, "poll-interval", &itmp) == 0)
 		interval = (int)round(itmp);
 
+   if(json_find_string(json, "state", &pstate) == 0) {
+      if(strcmp(pstate,"connected") == 0) state = CONNECTED;
+      if(strcmp(pstate,"disconnected") == 0) state = DISCONNECTED;
+      }
+
 	while(ping_loop) {
 		if(protocol_thread_wait(node, interval, &nrloops) == ETIMEDOUT) {
 			pthread_mutex_lock(&pinglock);
@@ -86,7 +101,9 @@ static void *pingParse(void *param) {
 					json_append_member(pping->message, "origin", json_mkstring("receiver"));
 					json_append_member(pping->message, "protocol", json_mkstring(pping->id));
 
-					pilight.broadcast(pping->id, pping->message);
+					if(pilight.broadcast != NULL) {
+						pilight.broadcast(pping->id, pping->message);
+					}
 					json_delete(pping->message);
 					pping->message = NULL;
 				}
@@ -102,7 +119,9 @@ static void *pingParse(void *param) {
 				json_append_member(pping->message, "origin", json_mkstring("receiver"));
 				json_append_member(pping->message, "protocol", json_mkstring(pping->id));
 
-				pilight.broadcast(pping->id, pping->message);
+				if(pilight.broadcast != NULL) {
+					pilight.broadcast(pping->id, pping->message);
+				}
 				json_delete(pping->message);
 				pping->message = NULL;
 			}
@@ -134,7 +153,7 @@ static void pingThreadGC(void) {
 	protocol_thread_free(pping);
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void pingInit(void) {
@@ -148,6 +167,9 @@ void pingInit(void) {
 	pping->devtype = PING;
 	pping->hwtype = API;
 	pping->multipleId = 0;
+#ifdef PILIGHT_V6
+	pping->masterOnly = 1;
+#endif
 
 	options_add(&pping->options, 'c', "connected", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&pping->options, 'd', "disconnected", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
@@ -159,10 +181,10 @@ void pingInit(void) {
 	pping->threadGC=&pingThreadGC;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "ping";
-	module->version = "1.2";
+	module->version = "1.3";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

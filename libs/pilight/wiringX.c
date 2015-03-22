@@ -1,9 +1,9 @@
 /*
 	Copyright (c) 2014 CurlyMo <curlymoo1@gmail.com>
 
-	This program is FREE software: you can redistribute it and/or modify
+	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
-	the FREE Software Foundation, either version 3 of the License, or
+	the Free Software Foundation, either version 3 of the License, or
 	(at your option) any later version.
 
 	This program is distributed in the hope that it will be useful,
@@ -34,10 +34,13 @@
 #include "hummingboard.h"
 #include "raspberrypi.h"
 #include "bananapi.h"
+#include "ci20.h"
 #include "mem.h"
 
 static struct platform_t *platform = NULL;
-static int setup = -2;
+#ifndef __FreeBSD__
+	static int setup = -2;
+#endif
 
 void _fprintf(int prio, const char *format_str, ...) {
 	char line[1024];
@@ -353,11 +356,12 @@ int wiringXSetup(void) {
 	if(wiringXLog == NULL) {
 		wiringXLog = _fprintf;
 	}
-#ifdef __arm__
+#if defined(__arm__) || defined(__mips__)
 	if(setup == -2) {
 		hummingboardInit();
 		raspberrypiInit();
 		bananapiInit();
+		ci20Init();
 
 		int match = 0;
 		struct platform_t *tmp = platforms;

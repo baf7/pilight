@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -149,7 +149,7 @@ static void rsl366PrintHelp(void) {
 	printf("\t -f --off\t\t\tsend an off signal\n");
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void rsl366Init(void) {
@@ -157,6 +157,7 @@ void rsl366Init(void) {
 	protocol_register(&rsl366);
 	protocol_set_id(rsl366, "rsl366");
 	protocol_device_add(rsl366, "rsl366", "RSL366 Switches");
+	protocol_device_add(rsl366, "promax", "Pro MAX Switches");
 	protocol_plslen_add(rsl366, 390);
 	rsl366->devtype = SWITCH;
 	rsl366->hwtype = RF433;
@@ -176,10 +177,10 @@ void rsl366Init(void) {
 	rsl366->printHelp=&rsl366PrintHelp;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "rsl366";
-	module->version = "1.0";
+	module->version = "1.1";
 	module->reqversion = "5.0";
 	module->reqcommit = "84";
 }

@@ -21,10 +21,8 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
-#include <syslog.h>
 #include <time.h>
 #include <math.h>
 #include <string.h>
@@ -58,31 +56,56 @@ int main_gc(void) {
 	event_action_gc();
 	options_gc();
 	socket_gc();
-	dso_gc();
 
 	config_gc();
 	protocol_gc();
 	whitelist_free();
 	threads_gc();
 
+#ifndef _WIN32
 	wiringXGC();
-	gc_clear();
+#endif
+	dso_gc();
 	log_gc();
+	gc_clear();
 
 	FREE(progname);
 	xfree();
 
+#ifdef _WIN32
+	WSACleanup();
+#endif
+
 	return EXIT_SUCCESS;
 }
 
-void *receive_code(void *param) {
+void *receiveOOK(void *param) {
 	int duration = 0;
 
 	struct hardware_t *hw = (hardware_t *)param;
-	while(main_loop && hw->receive) {
-		duration = hw->receive();
+	while(main_loop && hw->receiveOOK) {
+		duration = hw->receiveOOK();
 		if(duration > 0) {
 			printf("%s: %d\n", hw->id, duration);
+		}
+	};
+	return NULL;
+}
+
+void *receivePulseTrain(void *param) {
+	struct rawcode_t r;
+	int i = 0;
+
+	struct hardware_t *hw = (hardware_t *)param;
+	while(main_loop && hw->receivePulseTrain) {
+		hw->receivePulseTrain(&r);
+		if(r.length == -1) {
+			main_gc();
+			break;
+		} else if(r.length > 0) {
+			for(i=0;i<r.length;i++) {
+				printf("%s: %d\n", hw->id, r.pulses[i]);
+			}
 		}
 	};
 	return NULL;
@@ -91,6 +114,7 @@ void *receive_code(void *param) {
 int main(int argc, char **argv) {
 	// memtrack();
 
+	atomicinit();
 	struct options_t *options = NULL;
 	char *args = NULL;
 	char *configtmp = MALLOC(strlen(CONFIG_FILE)+1);
@@ -135,7 +159,7 @@ int main(int argc, char **argv) {
 				goto close;
 			break;
 			case 'V':
-				printf("%s %s\n", progname, VERSION);
+				printf("%s v%s\n", progname, PILIGHT_VERSION);
 				goto close;
 			break;
 			case 'C':
@@ -149,6 +173,13 @@ int main(int argc, char **argv) {
 		}
 	}
 	options_delete(options);
+
+#ifdef _WIN32
+	if((pid = check_instances(L"pilight-raw")) != -1) {
+		logprintf(LOG_ERR, "pilight-raw is already running");
+		goto close;
+	}
+#endif
 
 	if((pid = isrunning("pilight-daemon")) != -1) {
 		logprintf(LOG_ERR, "pilight-daemon instance found (%d)", (int)pid);
@@ -178,11 +209,17 @@ int main(int argc, char **argv) {
 
 	struct conf_hardware_t *tmp_confhw = conf_hardware;
 	while(tmp_confhw) {
-		if(tmp_confhw->hardware->init() == EXIT_FAILURE) {
-			logprintf(LOG_ERR, "could not initialize %s hardware mode", tmp_confhw->hardware->id);
-			goto close;
+		if(tmp_confhw->hardware->init) {
+			if(tmp_confhw->hardware->init() == EXIT_FAILURE) {
+				logprintf(LOG_ERR, "could not initialize %s hardware mode", tmp_confhw->hardware->id);
+				goto close;
+			}
+			if(tmp_confhw->hardware->comtype == COMOOK) {
+				threads_register(tmp_confhw->hardware->id, &receiveOOK, (void *)tmp_confhw->hardware, 0);
+			} else if(tmp_confhw->hardware->comtype == COMPLSTRAIN) {
+				threads_register(tmp_confhw->hardware->id, &receivePulseTrain, (void *)tmp_confhw->hardware, 0);
+			}
 		}
-		threads_register(tmp_confhw->hardware->id, &receive_code, (void *)tmp_confhw->hardware, 0);
 		tmp_confhw = tmp_confhw->next;
 	}
 

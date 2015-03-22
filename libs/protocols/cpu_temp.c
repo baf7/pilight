@@ -26,8 +26,17 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <math.h>
+#ifdef _WIN32
+	#include "pthread.h"
+	#include "implement.h"
+#else
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -39,6 +48,7 @@
 #include "gc.h"
 #include "cpu_temp.h"
 
+#ifndef _WIN32
 static unsigned short cpu_temp_loop = 1;
 static unsigned short cpu_temp_threads = 0;
 static char cpu_temp[] = "/sys/class/thermal/thermal_zone0/temp";
@@ -116,12 +126,14 @@ static void *cpuTempParse(void *param) {
 						json_append_member(cpuTemp->message, "origin", json_mkstring("receiver"));
 						json_append_member(cpuTemp->message, "protocol", json_mkstring(cpuTemp->id));
 
-						pilight.broadcast(cpuTemp->id, cpuTemp->message);
+						if(pilight.broadcast != NULL) {
+							pilight.broadcast(cpuTemp->id, cpuTemp->message);
+						}
 						json_delete(cpuTemp->message);
 						cpuTemp->message = NULL;
 					}
 				} else {
-					logprintf(LOG_ERR, "CPU RPI device %s does not exists", cpu_temp);
+					logprintf(LOG_ERR, "CPU sysfs \"%s\" does not exists", cpu_temp);
 				}
 			}
 			pthread_mutex_unlock(&cpu_templock);
@@ -152,18 +164,21 @@ static void cpuTempThreadGC(void) {
 	}
 	protocol_thread_free(cpuTemp);
 }
+#endif
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void cpuTempInit(void) {
+#ifndef _WIN32
 	pthread_mutexattr_init(&cpu_tempattr);
 	pthread_mutexattr_settype(&cpu_tempattr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&cpu_templock, &cpu_tempattr);
+#endif
 
 	protocol_register(&cpuTemp);
 	protocol_set_id(cpuTemp, "cpu_temp");
-	protocol_device_add(cpuTemp, "cpu_temp", "RPi CPU/GPU temperature sensor");
+	protocol_device_add(cpuTemp, "cpu_temp", "CPU temperature sensor");
 	cpuTemp->devtype = WEATHER;
 	cpuTemp->hwtype = SENSOR;
 
@@ -176,14 +191,16 @@ void cpuTempInit(void) {
 	options_add(&cpuTemp->options, 0, "show-temperature", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 	options_add(&cpuTemp->options, 0, "poll-interval", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)10, "[0-9]");
 
+#ifndef _WIN32
 	cpuTemp->initDev=&cpuTempInitDev;
 	cpuTemp->threadGC=&cpuTempThreadGC;
+#endif
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "cpu_temp";
-	module->version = "1.3";
+	module->version = "1.4";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

@@ -36,18 +36,19 @@ static int noneReceive(void) {
 	return EXIT_SUCCESS;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void noneInit(void) {
 	hardware_register(&none);
 	hardware_set_id(none, "none");
-	none->type=NONE;
-	none->receive=&noneReceive;
+	none->hwtype=NONE;
+	none->comtype=COMNONE;
+	none->receiveOOK=&noneReceive;
 	none->send=&noneSend;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "none";
 	module->version = "1.0";

@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -112,6 +112,8 @@ static int teknihallCheckValues(struct JsonNode *jvalues) {
 				exit(EXIT_FAILURE);
 			}
 			snode->id = id;
+			snode->temp = 0;
+			snode->humi = 0;
 
 			json_find_number(jvalues, "temperature-offset", &snode->temp);
 			json_find_number(jvalues, "humidity-offset", &snode->humi);
@@ -135,7 +137,7 @@ static void teknihallGC(void) {
 	}
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void teknihallInit(void) {
@@ -167,7 +169,7 @@ void teknihallInit(void) {
 	teknihall->gc=&teknihallGC;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "teknihall";
 	module->version = "1.3";

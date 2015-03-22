@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -55,7 +55,7 @@ static void arctechDuskParseBinary(void) {
 	arctechDuskCreateMessage(id, unit, state, all);
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arctechDuskInit(void) {
@@ -67,7 +67,7 @@ void arctechDuskInit(void) {
 
 	arctech_dusk->devtype = DUSK;
 	arctech_dusk->hwtype = RF433;
-	arctech_dusk->pulse = 4;
+	arctech_dusk->pulse = 5;
 	arctech_dusk->rawlen = 132;
 	arctech_dusk->lsb = 3;
 
@@ -76,16 +76,13 @@ void arctechDuskInit(void) {
 	options_add(&arctech_dusk->options, 't', "dusk", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 	options_add(&arctech_dusk->options, 'f', "dawn", OPTION_NO_VALUE, DEVICES_STATE, JSON_STRING, NULL, NULL);
 
-	options_add(&arctech_dusk->options, 'a', "all", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-	options_add(&arctech_dusk->options, 0, "readonly", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-
 	arctech_dusk->parseBinary=&arctechDuskParseBinary;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_dusk";
-	module->version = "1.1";
+	module->version = "1.3";
 	module->reqversion = "5.0";
 	module->reqcommit = "84";
 }

@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -135,7 +135,8 @@ static void x10CreateNumber(int n) {
 }
 
 static void x10CreateState(int state) {
-	if(state == 0) {
+// CMA17 protocol: Off: state=1 and Byte 1-Bit 5 logical High. Also set complement bit.
+	if(state == 1) {
 		x10CreateHigh(36, 36);
 		x10CreateLow(52, 52);
 	}
@@ -189,7 +190,7 @@ static void x10PrintHelp(void) {
 	printf("\t -i --id=id\t\t\tcontrol a device with this id\n");
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void x10Init(void) {
@@ -213,10 +214,10 @@ void x10Init(void) {
 	x10->printHelp=&x10PrintHelp;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "x10";
-	module->version = "1.2";
+	module->version = "1.21";
 	module->reqversion = "5.0";
 	module->reqcommit = "84";
 }

@@ -21,7 +21,6 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <limits.h>
 #include <errno.h>
 #include <time.h>
@@ -45,11 +44,10 @@
 #include "gc.h"
 #include "dso.h"
 
-static int pulselen = 0;
 static unsigned short main_loop = 1;
 static unsigned short inner_loop = 1;
 
-static int normalize(int i) {
+static int normalize(int i, int pulselen) {
 	double x;
 	x=(double)i/pulselen;
 
@@ -67,16 +65,18 @@ int main_gc(void) {
 	event_action_gc();
 	options_gc();
 	socket_gc();
-	dso_gc();
 
 	config_gc();
 	protocol_gc();
 	whitelist_free();
 	threads_gc();
 
+#ifndef _WIN32
 	wiringXGC();
-	gc_clear();
+#endif
+	dso_gc();
 	log_gc();
+	gc_clear();
 
 	FREE(progname);
 	xfree();
@@ -84,12 +84,114 @@ int main_gc(void) {
 	return EXIT_SUCCESS;
 }
 
-void *receive_code(void *param) {
+void *receivePulseTrain(void *param) {
+	int i = 0;
+
+	int pulselen = 0;
+	int code[MAXPULSESTREAMLENGTH] = {0};
+	int binary[MAXPULSESTREAMLENGTH/2] = {0};
+	int pulse = 0;
+	int binaryLength = 0;
+
+	struct rawcode_t r;
+	struct tm tm;
+	time_t now = 0;
+
+	struct hardware_t *hw = (hardware_t *)param;
+
+	while(main_loop) {
+		memset(&r.pulses, 0, MAXPULSESTREAMLENGTH);
+		memset(&code, '\0', MAXPULSESTREAMLENGTH);
+		memset(&binary, '\0', MAXPULSESTREAMLENGTH/2);
+		memset(&tm, '\0', sizeof(struct tm));
+		pulse = 0;
+		binaryLength = 0;
+		inner_loop = 1;
+
+		i = 0;
+		time(&now);
+
+		hw->receivePulseTrain(&r);
+		if(r.length == -1) {
+			main_gc();
+			break;
+		} else if(r.length > 0) {
+			pulselen = r.pulses[r.length-1]/PULSE_DIV;
+
+			if(pulselen > 25) {
+				for(i=3;i<r.length;i++) {
+					if((r.pulses[i]/pulselen) >= 2) {
+						pulse=r.pulses[i];
+						break;
+					}
+				}
+				
+				/* Convert the raw code into binary code */
+				for(i=0;i<r.length;i++) {
+					if((unsigned int)r.pulses[i] > (pulse-pulselen)) {
+						code[i]=1;
+					} else {
+						code[i]=0;
+					}
+				}
+				for(i=2;i<r.length; i+=4) {
+					if(code[i+1] == 1) {
+						binary[i/4]=1;
+					} else {
+						binary[i/4]=0;
+					}
+				}
+
+				binaryLength = (int)((float)i/4);
+				if(normalize(pulse, pulselen) > 0 && r.length > 25) {
+					/* Print everything */
+					printf("--[RESULTS]--\n");
+					printf("\n");
+#ifdef _WIN32
+					localtime(&now);
+#else
+					localtime_r(&now, &tm);	
+#endif
+					char buf[128];
+					char *p = buf;
+					memset(&buf, '\0', sizeof(buf));
+#ifdef _WIN32
+					asctime_s(p, strlen(p), &tm);
+					printf("time:\t\t%s\n", buf);
+#else
+					asctime_r(&tm, p);
+					printf("time:\t\t%s", buf);
+#endif
+					printf("hardware:\t%s\n", hw->id);
+					printf("pulse:\t\t%d\n", normalize(pulse, pulselen));
+					printf("rawlen:\t\t%d\n", r.length);
+					printf("binlen:\t\t%d\n", binaryLength);
+					printf("pulselen:\t%d\n", pulselen);
+					printf("\n");
+					printf("Raw code:\n");
+					for(i=0;i<r.length;i++) {
+						printf("%d ", r.pulses[i]);
+					}
+					printf("\n");
+					printf("Binary code:\n");
+					for(i=0;i<binaryLength;i++) {
+						printf("%d",binary[i]);
+					}
+					printf("\n");
+				}
+			}
+		}
+	}
+	return (void *)NULL;
+}
+
+void *receiveOOK(void *param) {
 	int duration = 0;
 	int i = 0;
 	unsigned int y = 0;
 
 	int recording = 1;
+	int pulselen = 0;
 	int bit = 0;
 	int raw[MAXPULSESTREAMLENGTH] = {0};
 	int pRaw[MAXPULSESTREAMLENGTH] = {0};
@@ -100,17 +202,17 @@ void *receive_code(void *param) {
 	int rawLength = 0;
 	int binaryLength = 0;
 
+	struct tm tm;
 	time_t now = 0, later = 0;
 
 	struct hardware_t *hw = (hardware_t *)param;
-	if(hw->init) {
-		hw->init();
-	}
+
 	while(main_loop) {
 		memset(&raw, '\0', MAXPULSESTREAMLENGTH);
 		memset(&pRaw, '\0', MAXPULSESTREAMLENGTH);
 		memset(&code, '\0', MAXPULSESTREAMLENGTH);
 		memset(&binary, '\0', MAXPULSESTREAMLENGTH/2);
+		memset(&tm, '\0', sizeof(struct tm));
 		recording = 1;
 		bit = 0;
 		footer = 0;
@@ -118,14 +220,15 @@ void *receive_code(void *param) {
 		rawLength = 0;
 		binaryLength = 0;
 		inner_loop = 1;
+		pulselen = 0;
 
 		duration = 0;
 		i = 0;
 		y = 0;
 		time(&now);
 
-		while(inner_loop && hw->receive) {
-			duration = hw->receive();
+		while(inner_loop && hw->receiveOOK) {
+			duration = hw->receiveOOK();
 			time(&later);
 			if(difftime(later, now) > 1) {
 				inner_loop = 0;
@@ -141,7 +244,7 @@ void *receive_code(void *param) {
 			}
 
 			/* First try to catch code that seems to be a footer.
-			   If a real footer has been recognized, start using that as the new footer */
+				 If a real footer has been recognized, start using that as the new footer */
 			if((duration > 5100 && footer == 0) || ((footer-(footer*0.3)<duration) && (footer+(footer*0.3)>duration))) {
 				recording = 1;
 				pulselen = (int)duration/PULSE_DIV;
@@ -183,7 +286,7 @@ void *receive_code(void *param) {
 			}
 
 			fflush(stdout);
-		};
+		}
 
 		/* Convert the raw code into binary code */
 		for(i=0;i<rawLength;i++) {
@@ -202,20 +305,33 @@ void *receive_code(void *param) {
 		}
 
 		binaryLength = (int)((float)i/4);
-		if(rawLength > 0 && normalize(pulse) > 0 && rawLength > 25) {
+		if(normalize(pulse, pulselen) > 0 && rawLength > 25) {
 			/* Print everything */
 			printf("--[RESULTS]--\n");
 			printf("\n");
-			printf("time:\t\t%s", asctime(localtime(&now)));
+#ifdef _WIN32
+			localtime(&now);
+#else
+			localtime_r(&now, &tm);	
+#endif
+			char buf[128];
+			char *p = buf;
+#ifdef _WIN32
+			asctime_s(p, strlen(p), &tm);
+			printf("time:\t\t%s\n", buf);
+#else
+			asctime_r(&tm, p);
+			printf("time:\t\t%s", buf);
+#endif
 			printf("hardware:\t%s\n", hw->id);
-			printf("pulse:\t\t%d\n", normalize(pulse));
+			printf("pulse:\t\t%d\n", normalize(pulse, pulselen));
 			printf("rawlen:\t\t%d\n", rawLength);
 			printf("binlen:\t\t%d\n", binaryLength);
 			printf("pulselen:\t%d\n", pulselen);
 			printf("\n");
 			printf("Raw code:\n");
 			for(i=0;i<rawLength;i++) {
-				printf("%d ",normalize(raw[i])*pulselen);
+				printf("%d ",normalize(raw[i], pulselen)*pulselen);
 			}
 			printf("\n");
 			printf("Binary code:\n");
@@ -233,6 +349,8 @@ void *receive_code(void *param) {
 
 int main(int argc, char **argv) {
 	// memtrack();
+
+	atomicinit();
 
 	gc_attach(main_gc);
 
@@ -280,7 +398,7 @@ int main(int argc, char **argv) {
 				goto clear;
 			break;
 			case 'V':
-				printf("%s %s\n", progname, VERSION);
+				printf("%s v%s\n", progname, PILIGHT_VERSION);
 				goto clear;
 			break;
 			case 'C':
@@ -296,6 +414,13 @@ int main(int argc, char **argv) {
 	}
 	options_delete(options);
 
+#ifdef _WIN32
+	if((pid = check_instances(L"pilight-debug")) != -1) {
+		logprintf(LOG_ERR, "pilight-debug is already running");
+		goto clear;
+	}
+#endif
+
 	if((pid = isrunning("pilight-daemon")) != -1) {
 		logprintf(LOG_ERR, "pilight-daemon instance found (%d)", (int)pid);
 		goto clear;
@@ -308,6 +433,7 @@ int main(int argc, char **argv) {
 
 	protocol_init();
 	config_init();
+
 	if(config_read() != EXIT_SUCCESS) {
 		goto clear;
 	}
@@ -317,11 +443,17 @@ int main(int argc, char **argv) {
 
 	struct conf_hardware_t *tmp_confhw = conf_hardware;
 	while(tmp_confhw) {
-		if(tmp_confhw->hardware->init() == EXIT_FAILURE) {
-			logprintf(LOG_ERR, "could not initialize %s hardware mode", tmp_confhw->hardware->id);
-			goto clear;
+		if(tmp_confhw->hardware->init) {
+			if(tmp_confhw->hardware->init() == EXIT_FAILURE) {
+				logprintf(LOG_ERR, "could not initialize %s hardware mode", tmp_confhw->hardware->id);
+				goto clear;
+			}
+			if(tmp_confhw->hardware->comtype == COMOOK) {
+				threads_register(tmp_confhw->hardware->id, &receiveOOK, (void *)tmp_confhw->hardware, 0);
+			} else if(tmp_confhw->hardware->comtype == COMPLSTRAIN) {
+				threads_register(tmp_confhw->hardware->id, &receivePulseTrain, (void *)tmp_confhw->hardware, 0);
+			}
 		}
-		threads_register(tmp_confhw->hardware->id, &receive_code, (void *)tmp_confhw->hardware, 0);
 		tmp_confhw = tmp_confhw->next;
 	}
 

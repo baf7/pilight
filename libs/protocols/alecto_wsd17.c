@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -103,6 +103,7 @@ static int alectoWSD17CheckValues(struct JsonNode *jvalues) {
 				exit(EXIT_FAILURE);
 			}
 			snode->id = id;
+			snode->temp = 0;
 
 			json_find_number(jvalues, "temperature-offset", &snode->temp);
 
@@ -125,7 +126,7 @@ static void alectoWSD17GC(void) {
 	}
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void alectoWSD17Init(void) {
@@ -152,7 +153,7 @@ void alectoWSD17Init(void) {
 	alecto_wsd17->gc=&alectoWSD17GC;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "alecto_wsd17";
 	module->version = "0.10";

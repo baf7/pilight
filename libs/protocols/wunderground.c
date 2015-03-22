@@ -26,8 +26,17 @@
 #include <fcntl.h>
 #include <math.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+	#include "pthread.h"
+	#include "implement.h"
+#else
+	#ifdef __mips__
+		#define __USE_UNIX98
+	#endif
+	#include <pthread.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "../pilight/datetime.h" // Full path because we also have a datetime protocol
@@ -87,7 +96,9 @@ static void *wundergroundParse(void *param) {
 	char *shour = NULL, *smin = NULL;
 	char *rhour = NULL, *rmin = NULL;
 
-	if(!wnode) {
+	memset(&typebuf, '\0', 255);
+
+	if(wnode == NULL) {
 		logprintf(LOG_ERR, "out of memory");
 		exit(EXIT_FAILURE);
 	}
@@ -176,7 +187,7 @@ static void *wundergroundParse(void *param) {
 			sprintf(url, "http://api.wunderground.com/api/%s/geolookup/conditions/q/%s/%s.json", wnode->api, wnode->country, wnode->location);
 			data = http_get_content(url, &tp, &ret, &size);
 			if(ret == 200) {
-				if(strcmp(typebuf, "application/json;") == 0) {
+				if(strstr(typebuf, "application/json") != NULL) {
 					if(json_validate(data) == true) {
 						if((jdata = json_decode(data)) != NULL) {
 							if((jobs = json_find_member(jdata, "current_observation")) != NULL) {
@@ -215,10 +226,16 @@ static void *wundergroundParse(void *param) {
 																	sscanf(stmp, "%d%%", &humi);
 
 																	timenow = time(NULL);
-																	struct tm *current = localtime(&timenow);
-																	int month = current->tm_mon+1;
-																	int mday = current->tm_mday;
-																	int year = current->tm_year+1900;
+																	struct tm current;
+																	memset(&current, '\0', sizeof(struct tm));
+#ifdef _WIN32
+																	localtime(&timenow);
+#else
+																	localtime_r(&timenow, &current);
+#endif
+																	int month = current.tm_mon+1;
+																	int mday = current.tm_mday;
+																	int year = current.tm_year+1900;
 
 																	time_t midnight = (datetime2ts(year, month, mday, 23, 59, 59, 0)+1);
 																	time_t sunset = 0;
@@ -248,7 +265,9 @@ static void *wundergroundParse(void *param) {
 																	json_append_member(wunderground->message, "origin", json_mkstring("receiver"));
 																	json_append_member(wunderground->message, "protocol", json_mkstring(wunderground->id));
 
-																	pilight.broadcast(wunderground->id, wunderground->message);
+																	if(pilight.broadcast != NULL) {
+																		pilight.broadcast(wunderground->id, wunderground->message);
+																	}
 																	json_delete(wunderground->message);
 																	wunderground->message = NULL;
 																	/* Send message when sun rises */
@@ -323,7 +342,9 @@ static void *wundergroundParse(void *param) {
 			json_append_member(wunderground->message, "message", code);
 			json_append_member(wunderground->message, "origin", json_mkstring("receiver"));
 			json_append_member(wunderground->message, "protocol", json_mkstring(wunderground->id));
-			pilight.broadcast(wunderground->id, wunderground->message);
+			if(pilight.broadcast != NULL) {
+				pilight.broadcast(wunderground->id, wunderground->message);
+			}
 			json_delete(wunderground->message);
 			wunderground->message = NULL;
 		}
@@ -332,16 +353,6 @@ static void *wundergroundParse(void *param) {
 	}
 	pthread_mutex_unlock(&wundergroundlock);
 
-	struct wunderground_data_t *wtmp = NULL;
-	while(wunderground_data) {
-		wtmp = wunderground_data;
-		FREE(wunderground_data->api);
-		FREE(wunderground_data->country);
-		FREE(wunderground_data->location);
-		wunderground_data = wunderground_data->next;
-		FREE(wtmp);
-	}
-	FREE(wunderground_data);
 	wunderground_threads--;
 	return (void *)NULL;
 }
@@ -413,6 +424,17 @@ static void wundergroundThreadGC(void) {
 		usleep(10);
 	}
 	protocol_thread_free(wunderground);
+
+	struct wunderground_data_t *wtmp = NULL;
+	while(wunderground_data) {
+		wtmp = wunderground_data;
+		FREE(wunderground_data->api);
+		FREE(wunderground_data->country);
+		FREE(wunderground_data->location);
+		wunderground_data = wunderground_data->next;
+		FREE(wtmp);
+	}
+	FREE(wunderground_data);	
 }
 
 static void wundergroundPrintHelp(void) {
@@ -422,7 +444,7 @@ static void wundergroundPrintHelp(void) {
 	printf("\t -u --update\t\t\tupdate the defined weather entry\n");
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void wundergroundInit(void) {
@@ -436,6 +458,9 @@ void wundergroundInit(void) {
 	wunderground->devtype = WEATHER;
 	wunderground->hwtype = API;
 	wunderground->multipleId = 0;
+#ifdef PILIGHT_V6
+	wunderground->masterOnly = 1;
+#endif
 
 	options_add(&wunderground->options, 't', "temperature", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
 	options_add(&wunderground->options, 'h', "humidity", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
@@ -462,12 +487,12 @@ void wundergroundInit(void) {
 	wunderground->printHelp=&wundergroundPrintHelp;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "wunderground";
-	module->version = "1.7";
-	module->reqversion = "5.0";
-	module->reqcommit = "187";
+	module->version = "1.10";
+	module->reqversion = "6.0";
+	module->reqcommit = "23";
 }
 
 void init(void) {

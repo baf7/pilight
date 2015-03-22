@@ -19,13 +19,33 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-#include <ifaddrs.h>
+#ifndef _WIN32
+	#include <ifaddrs.h>
+	#include <pthread.h>
+#else
+	#include "pthread.h"
+	#include "implement.h"
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 
-char *progname;
+extern char *progname;
 
-char *host2ip(char *host);
+#ifdef _WIN32
+int check_instances(const wchar_t *prog);
+const char *inet_ntop(int af, const void* src, char* dst, int cnt);
+int setenv(const char *name, const char *value, int overwrite);
+int unsetenv(const char *name);
+int inet_pton(int af, const char *src, void *dst);
+int isrunning(const char *program);
+#endif
+
+int isrunning(const char *program);
+void atomicinit(void);
+void atomiclock(void);
+void atomicunlock(void);
+unsigned int explode(char *str, const char *delimiter, char ***output);
+int host2ip(char *host, char *ip);
 int isNumeric(char *str);
 int nrDecimals(char *str);
 int name2uid(char const *name);
@@ -35,7 +55,8 @@ const char *rstrstr(const char* haystack, const char* needle);
 void alpha_random(char *s, const int len);
 int urldecode(const char *s, char *dec);
 char *urlencode(char *str);
-int base64decode(unsigned char *dest, unsigned char *src, int l);
+char *base64encode(char *src, size_t len);
+char *base64decode(char *src, size_t len, size_t *decsize);
 char *hostname(void);
 char *distroname(void);
 void rmsubstr(char *s, const char *r);
@@ -44,7 +65,6 @@ int whitelist_check(char *ip);
 void whitelist_free(void);
 int file_exists(char *fil);
 int path_exists(char *fil);
-int isrunning(const char *program);
 
 #ifdef __FreeBSD__
 struct sockaddr *sockaddr_dup(struct sockaddr *sa);

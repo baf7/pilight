@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -143,7 +143,7 @@ static void alectoWX500ParseCode(void) {
 			battery = !alectoWX500->binary[8];
 
 			json_append_member(alectoWX500->message, "id", json_mknumber(id, 0));
-			json_append_member(alectoWX500->message, "winddir", json_mknumber((double)winddir/10, 1));
+			json_append_member(alectoWX500->message, "winddir", json_mknumber((double)winddir, 0));
 			json_append_member(alectoWX500->message, "windgust", json_mknumber((double)windgust/10, 1));
 			json_append_member(alectoWX500->message, "battery", json_mknumber(battery, 0));
 		break;
@@ -201,6 +201,8 @@ static int alectoWX500CheckValues(struct JsonNode *jvalues) {
 				exit(EXIT_FAILURE);
 			}
 			snode->id = id;
+			snode->temp = 0;
+			snode->humi = 0;
 
 			json_find_number(jvalues, "temperature-offset", &snode->temp);
 			json_find_number(jvalues, "humidity-offset", &snode->humi);
@@ -224,7 +226,7 @@ static void alectoWX500GC(void) {
 	}
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void alectoWX500Init(void) {
@@ -274,7 +276,7 @@ void alectoWX500Init(void) {
 #ifdef MODULAR
 void compatibility(const char **version, const char **commit) {
 	module->name = "alecto_wx500";
-	module->version = "0.11";
+	module->version = "0.12";
 	module->reqversion = "5.0";
 	module->reqcommit = "187";
 }

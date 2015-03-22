@@ -21,7 +21,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -182,7 +182,7 @@ static void arctechSrPrintHelp(void) {
 	printf("\t -a --all\t\t\tsend command to all devices with this id\n");
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void arctechSrInit(void) {
@@ -191,6 +191,7 @@ void arctechSrInit(void) {
 	protocol_set_id(arctech_screen, "arctech_screen");
 	protocol_device_add(arctech_screen, "kaku_screen", "KlikAanKlikUit Screens");
 	protocol_device_add(arctech_screen, "dio_screen", "DI-O Screens");
+	protocol_plslen_add(arctech_screen, 315);
 	protocol_plslen_add(arctech_screen, 251);
 	protocol_plslen_add(arctech_screen, 294);
 	protocol_plslen_add(arctech_screen, 303);
@@ -213,10 +214,10 @@ void arctechSrInit(void) {
 	arctech_screen->printHelp=&arctechSrPrintHelp;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_screen";
-	module->version = "1.1";
+	module->version = "1.2";
 	module->reqversion = "5.0";
 	module->reqcommit = "84";
 }

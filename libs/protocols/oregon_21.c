@@ -25,7 +25,7 @@ Change Log:
 #include <stdint.h>
 #include <math.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -37,17 +37,17 @@ Change Log:
 
 #define PRINT_DEBUG
 //#define PRINT_DEBUGA
-#define OREGON_21		       		oregon_21Weather
-#define PULSE_OREGON_21_SYNC		976			  // 16 pairs Pre-Amble
-#define PULSE_OREGON_21_SYNC_L		PULSE_OREGON_21_SYNC-192  // 784 minimum
-#define PULSE_OREGON_21_SYNC_H		PULSE_OREGON_21_SYNC+192  // 1186 maximum
-#define PULSE_OREGON_21_SHORT		488     // OREGON_21 Docu Clock and short pulse duration
-#define PULSE_OREGON_21_SHORT_L		PULSE_OREGON_21_SHORT-268 // 220 min
-#define PULSE_OREGON_21_SHORT_H		PULSE_OREGON_21_SHORT+192 // 680 max
-#define PULSE_OREGON_21_LONG		976     // OREGON_21 Docu long pulse duration
-#define PULSE_OREGON_21_LONG_L		PULSE_OREGON_21_LONG-288 // 688 min
-#define PULSE_OREGON_21_LONG_H		PULSE_OREGON_21_LONG+432 // 1408 max
-#define PULSE_OREGON_21_FOOTER		324     // GAP 11018/34
+#define OREGON_21	oregon_21Weather
+#define PULSE_OREGON_21_SYNC	976			  // 16 pairs Pre-Amble
+#define PULSE_OREGON_21_SYNC_L	PULSE_OREGON_21_SYNC-192  // 784 minimum
+#define PULSE_OREGON_21_SYNC_H	PULSE_OREGON_21_SYNC+192  // 1186 maximum
+#define PULSE_OREGON_21_SHORT	488     // OREGON_21 Docu Clock and short pulse duration
+#define PULSE_OREGON_21_SHORT_L	PULSE_OREGON_21_SHORT-268 // 220 min
+#define PULSE_OREGON_21_SHORT_H	PULSE_OREGON_21_SHORT+192 // 680 max
+#define PULSE_OREGON_21_LONG	976     // OREGON_21 Docu long pulse duration
+#define PULSE_OREGON_21_LONG_L	PULSE_OREGON_21_LONG-288 // 688 min
+#define PULSE_OREGON_21_LONG_H	PULSE_OREGON_21_LONG+432 // 1408 max
+#define PULSE_OREGON_21_FOOTER	324     // GAP 11018/34
 #define PULSE_OREGON_21_FOOTER_L	(PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H	(PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -55,22 +55,22 @@ Change Log:
 // PREAMB + SYNC + (14 to 21 data nibbles + 2 to 5 nibbles post amble)*manchester_encoding
 // rawlenmin: 32+12+(14*8+2*8)*1= 172
 // rawlenmax: 32+12+(21*8+5*8)*2= 460
-#define BIN_ARRAY_CLASSIC			28		      // 28 - 16 is the Systemboundary
-#define BINLEN_OREGON_21_PROT		BIN_ARRAY_CLASSIC*8     // 128 is the systemboundary
-#define RAWLEN_OREGON_21_PROT		428		     // 255 is the systemboundary in the protocol_t structure
+#define BIN_ARRAY_CLASSIC	28		      // 28 - 16 is the Systemboundary
+#define BINLEN_OREGON_21_PROT	BIN_ARRAY_CLASSIC*8     // 128 is the systemboundary
+#define RAWLEN_OREGON_21_PROT	428		     // 255 is the systemboundary in the protocol_t structure
 
 #define MINRAWLEN_OREGON_21_PROT	140     // all Data bit toogle
 #define MAXRAWLEN_OREGON_21_PROT	428     // all Data bit equal
 
- static void OREGON_21WeatherCreateMessage(	int device_id, int id, int unit, int battery, int temp, int humidity,
+ static void OREGON_21WeatherCreateMessage(	int device_id, int id, int unit, int battery, double temp, double humidity,
 					  						int uv, int wind_dir, int wind_speed, int wind_avg, int rain, int rain_total, int pressure) {
 	OREGON_21->message = json_mkobject();
 	json_append_member(OREGON_21->message, "device_id", json_mknumber(device_id,0));
 	json_append_member(OREGON_21->message, "id", json_mknumber(id,0));
 	json_append_member(OREGON_21->message, "unit", json_mknumber(unit,0));
 	json_append_member(OREGON_21->message, "battery", json_mknumber(battery,0));
-	if (temp != -1) json_append_member(OREGON_21->message, "temperature", json_mknumber(temp,0));
-	if (humidity != -1) json_append_member(OREGON_21->message, "humidity", json_mknumber(humidity,0));
+	if (temp > -274.0) json_append_member(OREGON_21->message, "temperature", json_mknumber(temp/100,2));
+	if (humidity > 0.0) json_append_member(OREGON_21->message, "humidity", json_mknumber(humidity,2));
 	if (uv != -1) json_append_member(OREGON_21->message, "uv", json_mknumber(uv,0));
 	if (wind_dir != -1) json_append_member(OREGON_21->message, "wind_dir", json_mknumber(wind_dir,0));
 	if (wind_speed != -1) json_append_member(OREGON_21->message, "wind_speed", json_mknumber(wind_speed,0));
@@ -94,8 +94,8 @@ static void OREGON_21WeatherParseCode(void) {
 	int id = -1;
 	int unit = -1;
 	int battery = -1;
-	int temp = -1;
-	int humidity = -1;
+	double temp = -300.0;
+	double humidity = -1.0;
 	int uv = -1;
 	int wind_dir = -1;
 	int wind_speed = -1;
@@ -103,7 +103,7 @@ static void OREGON_21WeatherParseCode(void) {
 	int rain = -1;
 	int rain_total = -1;
 	int pressure = -1;
-//
+// Oregon V2.1
 // The last preamble bit is ON, e.q. the first SYNC nibble
 // is send as RF: OFF,ON,OFF
 //
@@ -121,19 +121,19 @@ static void OREGON_21WeatherParseCode(void) {
 //
 //
 #ifdef VAR_PULSE
-	int dur_short[2][2] = { {220, 688}, {210, 640} };
-	int dur_long[2][2] = { {688, 1500}, {641, 1500} };
+	int dur_short[2][2] = { {220, 695}, {210, 640} };
+	int dur_long[2][2] = { {696, 1500}, {641, 1500} };
 #endif
 	int rf_state = 1; 			// 0 - off, 1- on
 //
 //      int cksum = 0;
 //
-#define PULSE_OREGON_21_SHORT_L		PULSE_OREGON_21_SHORT-268	// 220 min
-#define PULSE_OREGON_21_SHORT_H		PULSE_OREGON_21_SHORT+192	// 680 max
-#define PULSE_OREGON_21_LONG		976     					// OREGON_21 Docu long pulse duration
-#define PULSE_OREGON_21_LONG_L		PULSE_OREGON_21_LONG-288	// 688 min
-#define PULSE_OREGON_21_LONG_H		PULSE_OREGON_21_LONG+432	// 1408 max
-#define PULSE_OREGON_21_FOOTER		324							// GAP 11018/34
+#define PULSE_OREGON_21_SHORT_L	PULSE_OREGON_21_SHORT-268	// 220 min
+#define PULSE_OREGON_21_SHORT_H	PULSE_OREGON_21_SHORT+192	// 680 max
+#define PULSE_OREGON_21_LONG	976     					// OREGON_21 Docu long pulse duration
+#define PULSE_OREGON_21_LONG_L	PULSE_OREGON_21_LONG-288	// 688 min
+#define PULSE_OREGON_21_LONG_H	PULSE_OREGON_21_LONG+432	// 1408 max
+#define PULSE_OREGON_21_FOOTER	324							// GAP 11018/34
 #define PULSE_OREGON_21_FOOTER_L	(PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H	(PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -146,7 +146,7 @@ static void OREGON_21WeatherParseCode(void) {
 		OREGON_21->binary[i]=0;
 	}
 #ifdef PRINT_DEBUG
-	logprintf(LOG_DEBUG, "OREGON_21: Start decoding\n");
+	logprintf(LOG_DEBUG, "OREGON_21: State 1: Start decoding\n");
 #endif
 	while (pRaw<=OREGON_21->rawlen) {
 		switch (protocol_sync) {
@@ -154,17 +154,17 @@ static void OREGON_21WeatherParseCode(void) {
 				rDataTime = OREGON_21->raw[pRaw++];
 				if( (rDataTime > PULSE_OREGON_21_SYNC_L) && (rDataTime < PULSE_OREGON_21_SYNC_H) ) {
 					s_0++;			  				// The Pre Amble has a max of 32 long pulses
-					if (s_0 > 48) {		 			// Allow leading noise pulses
+					if (s_0 > 48) {				// Allow leading noise pulses
 						protocol_sync = 95;
 					}
 				}
 				if( (rDataTime >= PULSE_OREGON_21_SHORT_L) && (rDataTime <= PULSE_OREGON_21_SHORT_H) ) {
-					protocol_sync = 1;				// We found the first short pulse, indicating SYNC nibbles
-					s_0 = 0;						// Reset Long Pulse counter, SYNC ends with the 4th long pulses
+					protocol_sync = 1;			// We found the first short pulse, indicating SYNC nibbles
+					s_0 = 0;							// Reset Long Pulse counter, SYNC ends with the 4th long pulses
 					rf_state = 0;					// RF status of 1st short SYNC is off
 				}
 			break;
-			case 1: // The fourth long pulse defines the end of SYNC
+			case 1:									// The fourth long pulse defines the end of SYNC
 				rDataTime = OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
 #ifdef PRINT_DEBUGA
@@ -179,7 +179,7 @@ logprintf(LOG_DEBUG,"\np_s: %d rdt: %d pRaw: %d s_0: %d ", protocol_sync, rDataT
 						pBin = 0;					// Logical Bit pointer
 						if (rf_state == 0) {
 #ifdef PRINT_DEBUGA
-						logprintf(LOG_DEBUG, "OREGON_21: rf_state forced to ON.");
+						logprintf(LOG_DEBUG, "OREGON_21: State 1: rf_state forced to ON.");
 #endif
 							rf_state = 1;
 						}
@@ -211,7 +211,7 @@ logprintf(LOG_DEBUG,"\nlog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", r
 					} else {
 						// Protocol Error, there is no 2nd valid single short pulse
 #ifdef PRINT_DEBUG
-						logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd short pulse");
+						logprintf(LOG_DEBUG, "OREGON_21: State 2: Missing 2nd short data pulse. Entering State 93");
 #endif
 						protocol_sync = 93;
 					}
@@ -225,7 +225,7 @@ logprintf(LOG_DEBUG,"\nlog: %d rdt: %d pRaw: %d r_s: %d l-low: %d l-high: %d", r
 					} else {
 						// Protocol Error or footer, there is no long pulse
 #ifdef PRINT_DEBUG
-						logprintf(LOG_DEBUG, "OREGON_21: End of valid payload - Check for footer condition");
+						logprintf(LOG_DEBUG, "OREGON_21: State 2: End of valid payload - Check for footer condition. Entering State 3");
 #endif
 						protocol_sync = 3;
 					}
@@ -256,7 +256,7 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 						} else {
 							// Protocol Error, there is no single short pulse
 #ifdef PRINT_DEBUG
-							logprintf(LOG_DEBUG, "OREGON_21: Error missing 2nd short pulse");
+							logprintf(LOG_DEBUG, "OREGON_21: State 2: Error missing 2nd short pulse. Entering State 94");
 #endif
 							protocol_sync = 94;
 						}
@@ -270,7 +270,7 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 						} else {
 							// Protocol Error, footer condition is detected before
 #ifdef PRINT_DEBUG
-							logprintf(LOG_DEBUG, "OREGON_21: Error missing inverted long pulse");
+							logprintf(LOG_DEBUG, "OREGON_21: State 2: Error missing inverted long pulse. Entering State 92");
 #endif
 							protocol_sync = 92;
 						}
@@ -280,7 +280,7 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 							OREGON_21->binary[pBin++]=0;
 						} else {
 #ifdef PRINT_DEBUG
-							logprintf(LOG_DEBUG, "OREGON_21: Bit Error in pulse stream");
+							logprintf(LOG_DEBUG, "OREGON_21: State 2: Bit Error in pulse stream. Entering State 96");
 #endif
 							protocol_sync = 96;
 						}
@@ -289,14 +289,14 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 							OREGON_21->binary[pBin++]=1;
 						} else {
 #ifdef PRINT_DEBUG
-							logprintf(LOG_DEBUG, "OREGON_21: Bit Error in pulse stream");
+							logprintf(LOG_DEBUG, "OREGON_21: State 2: Bit Error in pulse stream. Entering State 90");
 #endif
 							protocol_sync = 90;
 						}
 					}
 					if (pBin>BINLEN_OREGON_21_PROT) {
 #ifdef PRINT_DEBUG
-						logprintf(LOG_DEBUG, "OREGON_21: Too many binary bits decoded. Analysis abandoned");
+						logprintf(LOG_DEBUG, "OREGON_21: State 2: Too many binary bits decoded. Analysis abandoned. Entering State 89");
 #endif
 						protocol_sync = 89;
 					}
@@ -305,13 +305,13 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 			case 3:
 			// We found most probably a footer, check for footer pulse
 #ifdef PRINT_DEBUG
-				logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, --pRaw, --pBin);
+				logprintf(LOG_DEBUG, "OREGON_21: State 3: End of data. Pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, --pRaw, --pBin);
 #endif
 				if ( (rDataTime > PULSE_OREGON_21_FOOTER_L) && (rDataTime < PULSE_OREGON_21_FOOTER_H) ) {
 					protocol_sync = 98;
 				} else {
 #ifdef PRINT_DEBUG
-				logprintf(LOG_DEBUG, "OREGON_21: Unknown Footer length");
+				logprintf(LOG_DEBUG, "OREGON_21: State 3: Unknown Footer length");
 #endif
 				protocol_sync = 91;
 			}
@@ -325,7 +325,7 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 			// some devices send a spike before the footer, check if next pulse is footer
 				protocol_sync = 91;
 				if ( (OREGON_21->raw[pRaw+1] > PULSE_OREGON_21_FOOTER_L) && (OREGON_21->raw[pRaw+1] < PULSE_OREGON_21_FOOTER_H) ) {
-					logprintf(LOG_DEBUG, "OREGON_21: Ignore spike: %d at pRaw: %d before footer with length: %d", rDataTime, pRaw, OREGON_21->raw[pRaw+1]);
+					logprintf(LOG_DEBUG, "OREGON_21: State 91: Ignore spike: %d at pRaw: %d before footer with length: %d", rDataTime, pRaw, OREGON_21->raw[pRaw+1]);
 					rDataTime=OREGON_21->raw[pRaw++];
 					protocol_sync = 98;
 				}
@@ -337,16 +337,16 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 			// Short pulse missing 2nd data bit
 			case 95:
 			// We did not find valid Pre-Amble data
-				logprintf(LOG_DEBUG, "OREGON_21: err %d No valid data found.", protocol_sync);
+				logprintf(LOG_DEBUG, "OREGON_21: State %d: No further valid data found.", protocol_sync);
 			case 96:
 				protocol_sync = 99;
-				logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
+				logprintf(LOG_DEBUG, "OREGON_21: State 96: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
 			break;
 			case 97:
 			// We decoded a footer pulse without decoding the correct number of binary bits
-				logprintf(LOG_DEBUG, "OREGON_21: Err 97 unexpected EOF.");
+				logprintf(LOG_DEBUG, "OREGON_21: State 97: Unexpected EOF.");
 			case 98:
-				logprintf(LOG_DEBUG, "OREGON_21: End of data. pulse: %d - pRaw: %d - bin: %d", rDataTime, pRaw, pBin);
+				logprintf(LOG_DEBUG, "OREGON_21: State 98: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
 			// We have reached the end of processing raw data
 			case 99:
 			default:
@@ -354,7 +354,7 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 		}
 		if (protocol_sync > 95) {
 #ifdef PRINT_DEBUG
-			logprintf(LOG_DEBUG, "**** OREGON_21 RAW CODE ****");
+			logprintf(LOG_DEBUG, "OREGON_21: State %d: **** OREGON_21 RAW CODE ****",protocol_sync);
 			if(log_level_get() >= LOG_DEBUG) {
 				for(x=0;x<pRaw;x++) {
 					fprintf(stderr,"%d ", OREGON_21->raw[x]);
@@ -369,80 +369,83 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 	if (protocol_sync > 97) {
 	// ad checksum check later on
 
-		device_id       =  (binToDec(OREGON_21->binary, 0, 3) << 12);   // System ID
-		device_id       += (binToDec(OREGON_21->binary,4,7) << 8);
-		device_id       += (binToDec(OREGON_21->binary,8,11) << 4);
-		device_id       += (binToDec(OREGON_21->binary,12,15));
-		id	      =  (binToDec(OREGON_21->binary, 16,19));				// Channel
-		unit	    =  (binToDec(OREGON_21->binary, 20,23) << 4);   	// Unit
-		unit	    += (binToDec(OREGON_21->binary, 24,27));
-		battery	 =  (binToDec(OREGON_21->binary, 28,31) & 0x4);  		// Battery Flag Clear if result 0
+		device_id	=	(binToDec(OREGON_21->binary,  0, 3) << 12);   // System ID
+		device_id	+=	(binToDec(OREGON_21->binary,  4, 7) << 8);
+		device_id	+=	(binToDec(OREGON_21->binary,  8,11) << 4);
+		device_id	+=	(binToDec(OREGON_21->binary, 12,15));
+		id				=	(binToDec(OREGON_21->binary, 16,19));			// Channel
+		unit			=	(binToDec(OREGON_21->binary, 20,23) << 4);   // Unit
+		unit			+=	(binToDec(OREGON_21->binary, 24,27));
+		battery		=	(binToDec(OREGON_21->binary, 28,31) & 0x4);  // Battery Flag Clear if result 0
 		// Decode the payload of various V2.1 devices
 		switch (device_id) {
-			case 7456:					      // 1D20, F824, F8B4
+			case 7456:						// 1D20, F824, F8B4
 			case 63524:
 			case 63668:
 			case 52259:						// THGR 328N - CC23
-				temp    =  (binToDec(OREGON_21->binary, 32,35));		// Temp
-				temp    += (binToDec(OREGON_21->binary, 36,39)*10);
-				temp    += (binToDec(OREGON_21->binary, 40,43)*100);
+				temp    =  (double)((binToDec(OREGON_21->binary, 32,35)));		// Temp
+				temp    += (double)((binToDec(OREGON_21->binary, 36,39)*10));
+				temp    += (double)((binToDec(OREGON_21->binary, 40,43)*100));
+				temp    = temp * 10;
 				sign    =  (binToDec(OREGON_21->binary, 44,47));		// If set Temp is negative
 			if(sign!=0)temp = -temp;
-				humidity =  (binToDec(OREGON_21->binary, 48,51));       // Humidity
-				humidity += (binToDec(OREGON_21->binary, 52,55)*10);
+				humidity =  (double)((binToDec(OREGON_21->binary, 48,51)));		// Humidity
+				humidity += (double)((binToDec(OREGON_21->binary, 52,55)*10));
 			break;
-			case 60480:					     // EC40, C844
+			case 60480:						// EC40, C844
 			case 51268:
-				temp    =  (binToDec(OREGON_21->binary, 32,35));		// Temp
-				temp    += (binToDec(OREGON_21->binary, 36,39)*10);
-				temp    += (binToDec(OREGON_21->binary, 40,43)*100);
+				temp    =  (double)((binToDec(OREGON_21->binary, 32,35)));		// Temp
+				temp    += (double)((binToDec(OREGON_21->binary, 36,39)*10));
+				temp    += (double)((binToDec(OREGON_21->binary, 40,43)*100));
+				temp    = temp * 10;
 				sign    =  (binToDec(OREGON_21->binary, 44,47));		// If set Temp is negative
 			if(sign!=0)temp = -temp;
 			break;
-			case 60526:					     // EC70, D874
+			case 60526:						// EC70, D874
 			case 55412:
 				uv      =  (binToDec(OREGON_21->binary, 32,35));		// uv index
 				uv      += (binToDec(OREGON_21->binary, 36,39)*10);
 			break;
-			case 6532:					      // 1984, 1994
+			case 6532:						// 1984, 1994
 			case 6548:
 				wind_dir    =  (int)(binToDec(OREGON_21->binary, 32,35)*22.5); // wind direction
-				wind_speed  =  (binToDec(OREGON_21->binary, 44,47));    // wind speed
-				wind_speed +=  (binToDec(OREGON_21->binary, 48,51)*10); // wind speed
+				wind_speed  =  (binToDec(OREGON_21->binary, 44,47));		// wind speed
+				wind_speed +=  (binToDec(OREGON_21->binary, 48,51)*10);	// wind speed
 				wind_speed +=  (binToDec(OREGON_21->binary, 52,55)*100);	// wind speed
-				wind_avg    =  (binToDec(OREGON_21->binary, 56,59));    // wind average speed
-				wind_avg   +=  (binToDec(OREGON_21->binary, 60,63)*10); // wind average speed
+				wind_avg    =  (binToDec(OREGON_21->binary, 56,59));		// wind average speed
+				wind_avg   +=  (binToDec(OREGON_21->binary, 60,63)*10);	// wind average speed
 				wind_avg   +=  (binToDec(OREGON_21->binary, 64,67)*100);	// wind average speed
 			break;
-			case 10516:					     // 2914
-				rain     =  (binToDec(OREGON_21->binary, 32,35));       // rain rate 0,01 inch
+			case 10516:						// 2914
+				rain     =  (binToDec(OREGON_21->binary, 32,35));		// rain rate 0,01 inch
 				rain    +=  (binToDec(OREGON_21->binary, 36,39)*10);
 				rain    +=  (binToDec(OREGON_21->binary, 40,43)*100);
 				rain    +=  (binToDec(OREGON_21->binary, 44,47)*1000);
-				rain_total   =  (binToDec(OREGON_21->binary, 52,55));   // rain rate total, ignoring least sig. digit
+				rain_total   =  (binToDec(OREGON_21->binary, 52,55));	// rain rate total, ignoring least sig. digit
 				rain_total   +=  (binToDec(OREGON_21->binary, 56,59)*10);
 				rain_total   +=  (binToDec(OREGON_21->binary, 60,63)*100);
 				rain_total   +=  (binToDec(OREGON_21->binary, 64,67)*1000);
 			break;
-			case 11536:					     // 2D10
-				rain     =  (binToDec(OREGON_21->binary, 32,35));       // rain rate 0,1 mm
+			case 11536:						// 2D10
+				rain     =  (binToDec(OREGON_21->binary, 32,35));		// rain rate 0,1 mm
 				rain    +=  (binToDec(OREGON_21->binary, 36,39)*10);
 				rain    +=  (binToDec(OREGON_21->binary, 40,43)*100);
-				rain_total   =  (binToDec(OREGON_21->binary, 44,47));   // rain rate total
+				rain_total   =  (binToDec(OREGON_21->binary, 44,47));	// rain rate total
 				rain_total   +=  (binToDec(OREGON_21->binary, 48,51)*10);
 				rain_total   +=  (binToDec(OREGON_21->binary, 52,55)*100);
 				rain_total   +=  (binToDec(OREGON_21->binary, 56,59)*1000);
 				rain_total   +=  (binToDec(OREGON_21->binary, 60,63)*10000);
 			break;
-			case 23904:					     // 5D60
-				temp    =  (binToDec(OREGON_21->binary, 32,35));		// Temp
-				temp    += (binToDec(OREGON_21->binary, 36,39)*10);
-				temp    += (binToDec(OREGON_21->binary, 40,43)*100);
+			case 23904:						// 5D60
+				temp    =  (double)((binToDec(OREGON_21->binary, 32,35)));		// Temp
+				temp    += (double)((binToDec(OREGON_21->binary, 36,39)*10));
+				temp    += (double)((binToDec(OREGON_21->binary, 40,43)*100));
+				temp    = temp * 10;
 				sign    =  (binToDec(OREGON_21->binary, 44,47));		// If set Temp is negative
 				if(sign!=0)temp = -temp;
-				humidity =  (binToDec(OREGON_21->binary, 48,51));       // Humidity
-				humidity += (binToDec(OREGON_21->binary, 52,55)*10);
-				pressure	=  (binToDec(OREGON_21->binary, 64,67) << 8);   // pressure Hg
+				humidity =  (double)((binToDec(OREGON_21->binary, 48,51)));		// Humidity
+				humidity += (double)((binToDec(OREGON_21->binary, 52,55)*10));
+				pressure	=  (binToDec(OREGON_21->binary, 64,67) << 8);	// pressure Hg
 				pressure	+= (binToDec(OREGON_21->binary, 68,71) << 4);
 				pressure	+= (binToDec(OREGON_21->binary, 72,75));
 			break;
@@ -454,10 +457,10 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 
 
 #ifdef PRINT_DEBUG
-		logprintf(LOG_DEBUG, "**** OREGON_21 BIN CODE ****");
+		logprintf(LOG_DEBUG, "OREGON_21: **** OREGON_21 BIN CODE ****");
 #endif
 		if(log_level_get() >= LOG_DEBUG) {
-			fprintf(stderr,"\n device: %d - id: %d - unit: %d - batt: %d - temp: %d - humi: %d - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
+			fprintf(stderr,"\n device: %d - id: %d - unit: %d - batt: %d - temp: %f - humi: %f - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
 			fprintf(stderr,"\n wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d\n", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
 		}
 
@@ -465,8 +468,8 @@ logprintf(LOG_DEBUG,"\nilog: %d rdt: %d pRaw: %d r_s: %d s-low: %d s-high: %d", 
 
 	} else {
 #ifdef PRINT_DEBUG
-		logprintf(LOG_DEBUG,"\n*****-> protocol_sync: %d <-*****\n",protocol_sync);
-		logprintf(LOG_DEBUG, "OREGON_21 Parsecode Error");
+		logprintf(LOG_DEBUG,"\nOREGON_21: *****-> protocol_sync: %d <-*****\n",protocol_sync);
+		logprintf(LOG_DEBUG, "OREGON_21: Parsecode Error");
 #endif
 	}
 }
@@ -521,8 +524,8 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "oregon_21";
-	module->version =  "1.03";
-	module->reqversion =  "5.0";
+	module->version =  "1.10a";
+	module->reqversion =  "6.0";
 	module->reqcommit =  NULL;
 }
 

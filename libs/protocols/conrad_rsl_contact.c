@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "dso.h"
 #include "log.h"
@@ -89,7 +89,7 @@ void conradRSLCnInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name = "conrad_rsl_contact";
-	module->version = "0.3";
+	module->version = "1.0";
 	module->reqversion = "5.0";
 	module->reqcommit = "99";
 }

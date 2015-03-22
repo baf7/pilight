@@ -22,15 +22,15 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <regex.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <time.h>
 #include <libgen.h>
 #include <dirent.h>
-#include <dlfcn.h>
+#ifndef _WIN32
+	#include <dlfcn.h>
+#endif
 
-#include "../../pilight.h"
+#include "pilight.h"
 #include "common.h"
 #include "settings.h"
 #include "options.h"
@@ -43,6 +43,7 @@
 #include "action.h"
 #include "action_header.h"
 
+#ifndef _WIN32
 void event_action_remove(char *name) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
@@ -67,21 +68,24 @@ void event_action_remove(char *name) {
 		}
 	}
 }
+#endif
 
 void event_action_init(void) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
 	#include "action_init.h"
+
+#ifndef _WIN32
 	void *handle = NULL;
 	void (*init)(void);
 	void (*compatibility)(struct module_t *module);
 	char path[PATH_MAX];
 	struct module_t module;
-	char pilight_version[strlen(VERSION)+1];
+	char pilight_version[strlen(PILIGHT_VERSION)+1];
 	char pilight_commit[3];
 	char *action_root = NULL;
 	int check1 = 0, check2 = 0, valid = 1, action_root_free = 0;
-	strcpy(pilight_version, VERSION);
+	strcpy(pilight_version, PILIGHT_VERSION);
 
 	struct dirent *file = NULL;
 	DIR *d = NULL;
@@ -105,51 +109,52 @@ void event_action_init(void) {
 
 	if((d = opendir(action_root))) {
 		while((file = readdir(d)) != NULL) {
-			stat(file->d_name, &s);
-			/* Check if file */
-			if(S_ISREG(s.st_mode) == 1) {
-				if(strstr(file->d_name, ".so") != NULL) {
-					valid = 1;
-					memset(path, '\0', PATH_MAX);
-					sprintf(path, "%s%s", action_root, file->d_name);
+			memset(path, '\0', PATH_MAX);
+			sprintf(path, "%s%s", action_root, file->d_name);
+			if(stat(path, &s) == 0) {
+				/* Check if file */
+				if(S_ISREG(s.st_mode)) {
+					if(strstr(file->d_name, ".so") != NULL) {
+						valid = 1;
 
-					if((handle = dso_load(path)) != NULL) {
-						init = dso_function(handle, "init");
-						compatibility = dso_function(handle, "compatibility");
-						if(init && compatibility) {
-							compatibility(&module);
-							if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
-								char ver[strlen(module.reqversion)+1];
-								strcpy(ver, module.reqversion);
+						if((handle = dso_load(path)) != NULL) {
+							init = dso_function(handle, "init");
+							compatibility = dso_function(handle, "compatibility");
+							if(init && compatibility) {
+								compatibility(&module);
+								if(module.name != NULL && module.version != NULL && module.reqversion != NULL) {
+									char ver[strlen(module.reqversion)+1];
+									strcpy(ver, module.reqversion);
 
-								if((check1 = vercmp(ver, pilight_version)) > 0) {
-									valid = 0;
-								}
-
-								if(check1 == 0 && module.reqcommit != NULL) {
-									char com[strlen(module.reqcommit)+1];
-									strcpy(com, module.reqcommit);
-									sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
-
-									if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+									if((check1 = vercmp(ver, pilight_version)) > 0) {
 										valid = 0;
 									}
-								}
-								if(valid == 1) {
-									char tmp[strlen(module.name)+1];
-									strcpy(tmp, module.name);
-									event_action_remove(tmp);
-									init();
-									logprintf(LOG_DEBUG, "loaded event action %s v%s", file->d_name, module.version);
-								} else {
-									if(module.reqcommit != NULL) {
-										logprintf(LOG_ERR, "event action %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
-									} else {
-										logprintf(LOG_ERR, "event action %s requires at least pilight v%s", file->d_name, module.reqversion);
+
+									if(check1 == 0 && module.reqcommit != NULL) {
+										char com[strlen(module.reqcommit)+1];
+										strcpy(com, module.reqcommit);
+										sscanf(HASH, "v%*[0-9].%*[0-9]-%[0-9]-%*[0-9a-zA-Z\n\r]", pilight_commit);
+
+										if(strlen(pilight_commit) > 0 && (check2 = vercmp(com, pilight_commit)) > 0) {
+											valid = 0;
+										}
 									}
+									if(valid == 1) {
+										char tmp[strlen(module.name)+1];
+										strcpy(tmp, module.name);
+										event_action_remove(tmp);
+										init();
+										logprintf(LOG_DEBUG, "loaded event action %s v%s", file->d_name, module.version);
+									} else {
+										if(module.reqcommit != NULL) {
+											logprintf(LOG_ERR, "event action %s requires at least pilight v%s (commit %s)", file->d_name, module.reqversion, module.reqcommit);
+										} else {
+											logprintf(LOG_ERR, "event action %s requires at least pilight v%s", file->d_name, module.reqversion);
+										}
+									}
+								} else {
+									logprintf(LOG_ERR, "invalid module %s", file->d_name);
 								}
-							} else {
-								logprintf(LOG_ERR, "invalid module %s", file->d_name);
 							}
 						}
 					}
@@ -161,6 +166,7 @@ void event_action_init(void) {
 	if(action_root_free) {
 		FREE(action_root);
 	}
+#endif
 }
 
 void event_action_register(struct event_actions_t **act, const char *name) {

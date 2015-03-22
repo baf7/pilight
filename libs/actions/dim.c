@@ -27,7 +27,7 @@
 #include "devices.h"
 #include "log.h"
 #include "dso.h"
-#include "../../pilight.h"
+#include "pilight.h"
 
 static int actionDimArguments(struct JsonNode *arguments) {
 	struct JsonNode *jdevice = NULL;
@@ -104,12 +104,12 @@ static int actionDimArguments(struct JsonNode *arguments) {
 										while(tmp_protocols) {
 											struct options_t *opt = tmp_protocols->listener->options;
 											while(opt) {
-												if(match2 == 0 && strcmp(opt->name, "dimlevel-maximum") == 0 &&
+												if(match1 == 0 && strcmp(opt->name, "dimlevel-maximum") == 0 &&
 													opt->vartype == JSON_NUMBER && (int)(intptr_t)opt->def < (int)jschild->number_) {
 													logprintf(LOG_ERR, "device \"%s\" can't be set to dimlevel \"%d\"", jdchild->string_, (int)jschild->number_);
 													return -1;
 												}
-												if(match1 == 0 && strcmp(opt->name, "dimlevel-minimum") == 0 &&
+												if(match2 == 0 && strcmp(opt->name, "dimlevel-minimum") == 0 &&
 													opt->vartype == JSON_NUMBER && (int)(intptr_t)opt->def > (int)jschild->number_) {
 													logprintf(LOG_ERR, "device \"%s\" can't be set to dimlevel \"%d\"", jdchild->string_, (int)jschild->number_);
 													return -1;
@@ -183,7 +183,7 @@ static int actionDimRun(struct JsonNode *arguments) {
 	return 0;
 }
 
-#ifndef MODULE
+#if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
 void actionDimInit(void) {
@@ -196,7 +196,7 @@ void actionDimInit(void) {
 	action_dim->checkArguments = &actionDimArguments;
 }
 
-#ifdef MODULE
+#if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "dim";
 	module->version = "1.0";
