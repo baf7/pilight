@@ -1478,58 +1478,8 @@ static void socket_client_disconnected(int i) {
 	client_remove(socket_get_clients(i));
 }
 
-void *receivePulseTrain(void *param) {
-	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
-
-	struct rawcode_t r;
-	int plslen = 0;
-#ifdef _WIN32
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-#else
-	/* Make sure the pilight receiving gets
-	   the highest priority available */
-	struct sched_param sched;
-	memset(&sched, 0, sizeof(sched));
-	sched.sched_priority = 70;
-	pthread_setschedparam(pthread_self(), SCHED_FIFO, &sched);
-#endif
-
-	struct hardware_t *hw = (hardware_t *)param;
-	pthread_mutex_lock(&hw->lock);
-	hw->running = 1;
-
-	while(main_loop == 1 && hw->receivePulseTrain != NULL && hw->stop == 0) {
-		if(hw->wait == 0) {
-			pthread_mutex_lock(&hw->lock);
-			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
-
-			hw->receivePulseTrain(&r);
-			plslen = r.pulses[r.length-1]/PULSE_DIV;
-			if(r.length > 0) {
-				receive_queue(r.pulses, r.length, plslen, hw->hwtype);
-			} else if(r.length == -1) {
-				hw->init();
-				sleep(1);
-			}
-
-			pthread_mutex_unlock(&hw->lock);
-		} else {
-			pthread_cond_wait(&hw->signal, &hw->lock);
-		}
-	}
-	hw->running = 0;
-	return (void *)NULL;
-}
-
-void *receiveOOK(void *param) {
-	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
-
-	struct rawcode_t r;
-	int plslen = 0, duration = 0;
-
-// <<<<<<< HEAD
-//	int rawlen = 0;
-//	int rawcode[MAXPULSESTREAMLENGTH] = {0};
+/*
+static void header_processing(int duration, struct rawcode_t r) {
 
 #define WAIT_FOR_END_OF_HEADER	0
 #define WAIT_FOR_END_OF_DATA	1
@@ -1558,34 +1508,7 @@ int header_21[L_HEADER_21] = {PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_S
 int p_header_21 = 0;
 int flag_oregon_21 = 0;
 
-// =======
-// >>>>>>> upstream/development
-	struct timeval tp;
-	struct timespec ts;
 
-#ifdef _WIN32
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-#else
-	/* Make sure the pilight receiving gets
-	   the highest priority available */
-	struct sched_param sched;
-	memset(&sched, 0, sizeof(sched));
-	sched.sched_priority = 70;
-	pthread_setschedparam(pthread_self(), SCHED_FIFO, &sched);
-#endif
-
-	struct hardware_t *hw = (hardware_t *)param;
-	pthread_mutex_lock(&hw->lock);
-	hw->running = 1;
-	while(main_loop == 1 && hw->receiveOOK != NULL && hw->stop == 0) {
-		if(hw->wait == 0) {
-			pthread_mutex_lock(&hw->lock);
-			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
-			duration = hw->receiveOOK();
-
-			if(duration > 0) {
-//<<<<<<< HEAD
-				r.pulses[r.length] = duration;
 // --------------------------------------------------------------------------------------------------------------------
 // Convert RAW STREAM into compatible pilight format
 // Support for header/sync detection:
@@ -1669,6 +1592,321 @@ logprintf(LOG_DEBUG,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
 								pthread_mutex_unlock(&hw->lock);
 								duration_next = hw->receiveOOK();
 								pthread_mutex_lock(&hw->lock);
+								duration += duration_next;
+								p_header_21 = 1;	// The next pulse is short
+#ifdef PRINT_DEBUG_21
+logprintf(LOG_DEBUG,"\nWFD3S: rawl: %d - dur: %d durn:%d totdur:%d \nWFD3R: ",r.length, duration-duration_next, duration_next, duration);
+#endif
+							}
+							// Rebuild missing SYNC Header: 488, 976, 488 488 976 488 488 976
+							while ( (duration > 100) && (p_header_21 < (unsigned int)L_HEADER_21) ) {
+								r.pulses[r.length++] = header_21[p_header_21];
+								duration -= header_21[p_header_21];
+#ifdef PRINT_DEBUG_21
+logprintf(LOG_DEBUG,"r: %d - d:%d - ppc: %d ",r.length, duration, preamb_pulse_counter);
+#endif
+								preamb_pulse_counter++;
+								p_header_21++;
+							}
+							r.length--; // Adjust pointer
+							preamb_pulse_counter--; // Adjust counter
+#ifdef PRINT_DEBUG_21
+logprintf(LOG_DEBUG,"\n");
+#endif
+						}
+						preamb_state = WAIT_FOR_END_OF_DATA_3;
+						break;
+					case WAIT_FOR_END_OF_DATA:
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\nWFD - ");
+#endif
+						if ( duration > 5100) {                         // Regular GAP detected search for Header
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Footer found: Reset the state machine.");
+#endif
+							if (flag_oregon_21 == 1) {		// 2nd footer is also oregon_21
+								duration = O21_FOOTER;
+								r.pulses[r.length]   = duration;
+							}
+							preamb_state = WAIT_FOR_END_OF_HEADER;
+						}
+						if ( duration > PREAMB_SYNC_MIN ) {
+							preamb_pulse_counter++;
+							preamb_duration += r.pulses[r.length];
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Potential Pre-Amble pulses - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d r.length %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, r.length);
+#endif
+						} else {
+// Check if we found the deviating pulse after a series of consecutive pulses
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," --No--   Pre-Amble pulse  - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d r.length %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, r.length);
+#endif
+							if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Pre-Amble detected Save SYNC, generate artifical footer -> WFD2.\n");
+#endif
+								latch_duration = duration;      // Remember this pulse for WFD2
+								r.pulses[r.length] = O21_FOOTER;   // Emulate Footer
+								duration = O21_FOOTER;
+								preamb_state = WAIT_FOR_END_OF_DATA_2;
+							} else {
+							// Below threshold, so we continue to wait
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," Wait. pass data on");
+#endif
+								preamb_duration = 0;
+								preamb_pulse_counter = 0;
+							}
+						}
+						break;
+					case WAIT_FOR_END_OF_DATA_3:
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"WFD3 - ");
+#endif
+						if ( duration > 5100) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Replace footer %d with artifical footer. -> WFH",duration);
+#endif
+							preamb_state = WAIT_FOR_END_OF_HEADER;
+							duration = O21_FOOTER;    // Replace GAP with defined footer value
+							r.pulses[r.length]   = duration;
+						}
+						break;
+
+					default:
+						break;
+				} // Switch
+				r.length++;
+				if(r.length > MAXPULSESTREAMLENGTH-1) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"**** r.length > 511 -> WFH");
+#endif
+					r.length = 0;
+					preamb_duration = 0;
+					preamb_pulse_counter = 0;
+					preamb_state = WAIT_FOR_END_OF_HEADER;
+				}
+				if(duration > 5100) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n**** ->");
+#endif
+					if((duration/PULSE_DIV) < 3000) { // Maximum footer pulse of 100000
+						plslen = duration/PULSE_DIV;
+					}
+					// Let's do a little filtering here as well
+//<<<<<<< HEAD
+					if(r.length >= minrawlen && r.length <= maxrawlen) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"Queueing raw data for further processing.");
+logprintf(LOG_DEBUG, "Test duration of Call");
+#endif
+						receive_queue(r.pulses, r.length, plslen, hw->hwtype);
+					}
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG, "Test duration of Call");
+if(log_level_get() >= LOG_DEBUG) {
+ printf("\nrawlen %d plslen %d \n**** rawcode: ", r.pulses, plslen);
+ for (i_loop=0;i_loop<=r.length;i_loop++) {
+         printf(" %d",rawcode[i_loop]);
+ }
+ printf("\n");
+}
+#endif
+					r.length = 0;
+					preamb_duration = 0;
+					preamb_pulse_counter = 0;
+					if (preamb_state == WAIT_FOR_END_OF_DATA) {
+						preamb_state = WAIT_FOR_END_OF_DATA_2;
+					}
+				} // if duration > 5100
+			// Hardware failure
+
+}
+*/
+
+
+void *receivePulseTrain(void *param) {
+	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
+
+	struct rawcode_t r;
+	int plslen = 0;
+#ifdef _WIN32
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+#else
+	/* Make sure the pilight receiving gets
+	   the highest priority available */
+	struct sched_param sched;
+	memset(&sched, 0, sizeof(sched));
+	sched.sched_priority = 70;
+	pthread_setschedparam(pthread_self(), SCHED_FIFO, &sched);
+#endif
+
+	struct hardware_t *hw = (hardware_t *)param;
+	pthread_mutex_lock(&hw->lock);
+	hw->running = 1;
+
+	while(main_loop == 1 && hw->receivePulseTrain != NULL && hw->stop == 0) {
+		if(hw->wait == 0) {
+			pthread_mutex_lock(&hw->lock);
+			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
+
+			hw->receivePulseTrain(&r);
+			plslen = r.pulses[r.length-1]/PULSE_DIV;
+			if(r.length > 0) {
+				receive_queue(r.pulses, r.length, plslen, hw->hwtype);
+			} else if(r.length == -1) {
+				hw->init();
+				sleep(1);
+			}
+
+			pthread_mutex_unlock(&hw->lock);
+		} else {
+			pthread_cond_wait(&hw->signal, &hw->lock);
+		}
+	}
+	hw->running = 0;
+	return (void *)NULL;
+}
+
+void *receiveOOK(void *param) {
+	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
+
+	struct rawcode_t r;
+	int plslen = 0, duration = 0;
+
+#define WAIT_FOR_END_OF_HEADER	0
+#define WAIT_FOR_END_OF_DATA	1
+#define WAIT_FOR_END_OF_DATA_2	4
+#define WAIT_FOR_END_OF_DATA_3	5
+#define PREAMB_SYNC_L			488	// V2.1 - clk = 1024 Hz
+#define PREAMB_SYNC_MIN			732
+#define PREAMB_SYNC_H			976	// V2.1 - clk = 1024 Hz
+#define PREAMB_SYNC_MAX			1120	// A single value above this value is added to the next value
+#define PREAMB_SYNC_DMAX		PREAMB_SYNC_H+PREAMB_SYNC_L
+#define O21_FOOTER				11018	// GAP pulse Oregon V2.1
+#define PRE_AMB_HEADER_CNT		22
+#define L_HEADER_21				12
+#define PRINT_DEBUG_21
+//#define PRINT_DEBUG_21A
+#ifdef PRINT_DEBUG_21A
+int i_loop;
+#endif
+
+int preamb_pulse_counter = 0;
+int latch_duration = 0;
+int preamb_duration = 0;
+int preamb_state = 0;
+int duration_next = 0;
+int header_21[L_HEADER_21] = {PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H};
+int p_header_21 = 0;
+int flag_oregon_21 = 0;
+
+	struct timeval tp;
+	struct timespec ts;
+
+#ifdef _WIN32
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+#else
+	/* Make sure the pilight receiving gets
+	   the highest priority available */
+	struct sched_param sched;
+	memset(&sched, 0, sizeof(sched));
+	sched.sched_priority = 70;
+	pthread_setschedparam(pthread_self(), SCHED_FIFO, &sched);
+#endif
+
+	struct hardware_t *hw = (hardware_t *)param;
+	pthread_mutex_lock(&hw->lock);
+	hw->running = 1;
+	while(main_loop == 1 && hw->receiveOOK != NULL && hw->stop == 0) {
+		if(hw->wait == 0) {
+			pthread_mutex_lock(&hw->lock);
+			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
+			duration = hw->receiveOOK();
+
+			if(duration > 0) {
+				r.pulses[r.length] = duration;
+// --------------------------------------------------------------------------------------------------------------------
+// Convert RAW STREAM into compatible pilight format
+// Support for header/sync detection:
+// oregon21: length 36: minimum length we want to receive is 35 (35 clock duration pulses)
+//           SYNC is coded as 10101010 and handled by the protocol itself (footer 11018, 31232)
+// Planned to be added support for
+// oregon30: length 24: mimimum length we want to receive is 23 (46 half clock duration pulses)
+//           SYNC is coded as 0101 and handled ny the protocol itself (footer 23424)
+// Maybe:
+// oregon10: length 12: minimum length we want to receive is 11 (22 half clock duration pulses)
+//           SYNC is coded as three pulses and handled by the protocol itself (footer 35088)
+// Analyse stream for repetitive pulses with half the duration of the clock frequency 2924µS for V1.0
+// Analyse stream for repetitive pulses with the duration of the clock frequency 976µS for V2.1
+// Analyse stream for repetitive pulses with half the duration of the clock frequency 976µS for V3.0
+//  - they are in V2.1 members of the Pre-Amb sequence
+//  - they are uncommon in regular header/footer based streams and other protocols
+//  -> Other protocols will never get beyhond the WAIT_FOR_END_OF_HEADER state
+//
+// oregon_space: 9000µS footer pulses: 500/2000 - ONE, 500/4000 - ZERO
+// This protocol dies not require modification in daemon.c
+//  - devices: SL-109H, AcuRite 09955
+// Marker criteria is the first deviating pulse:
+// - distance of pulses between marker is rawlen of pulse stream
+// - duration of repetitive pulses is footer
+// As pilight will only accept footer values that do not deviate by more than -/+170µS the protocol driver has to
+// cover an extended footer value range (two additional protocol_plslen_add function calls with a difference of +/- 11)
+// 15/01/15
+// --------------------------------------------------------------------------------------------------------------------
+				switch (preamb_state) {
+					case WAIT_FOR_END_OF_HEADER:
+						flag_oregon_21 = 0;
+						if ( duration > PREAMB_SYNC_MIN ) {      // Check for pulses with clock duration
+							preamb_pulse_counter++;
+							preamb_duration += r.pulses[r.length];
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n    Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d r.length %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, r.lenght);
+#endif
+						} else {
+// Check if we found the deviating pulse after a series of consecutive pulses
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\n No Pre-Amble - dur %d - m_state %d m_duration: %d m_pulsecnt %d m_state %d r.length %d", duration, preamb_state, preamb_duration, preamb_pulse_counter, preamb_state, r.length);
+#endif
+							if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG," - accepted SYNC found.\n");
+#endif
+								flag_oregon_21 = 1;		// flag for footer based protocols: 2nd transmission
+								preamb_state = WAIT_FOR_END_OF_DATA;
+								preamb_pulse_counter = 0;
+								r.length = 0;                     // Reset Pointer
+								r.pulses[r.length] = duration;     // Store the 1st SYNC pulse
+							} else {
+// Below threshold, so we have to reset and will continue to check
+#ifdef PRINT_DEBUG_21A
+logprintf(LOG_DEBUG,"\nNo Pre-Amble. pass data on.");
+#endif
+								preamb_duration = 0;
+								preamb_pulse_counter = 0;
+							}
+						}
+						break;
+					case WAIT_FOR_END_OF_DATA_2:
+#ifdef PRINT_DEBUG_21
+logprintf(LOG_DEBUG,"\nWFD2 - Processing Sync header for 2nd payload -> WFD3");
+#endif
+						r.length = 0;				// Restore 1st SYNC byte already received
+						preamb_pulse_counter = 1;
+						duration_next = 0;
+						r.pulses[r.length++] = latch_duration;
+						if (duration > O21_FOOTER) {		// A footer is a footer
+							duration = O21_FOOTER;
+							r.pulses[r.length]   = duration;
+						} else {
+							// pilight may have missed significant a number of pulses
+							// The length of the pulse is not correct
+							// to resynchronize, lets get the next pulse as well
+							// both length together are close to absolute duration
+							// and based on our knowledge of the SYNC structure
+							// we can recreate the header pulse sequence
+							if (duration  > PREAMB_SYNC_DMAX) {
+								duration_next = hw->receiveOOK();
 								duration += duration_next;
 								p_header_21 = 1;	// The next pulse is short
 #ifdef PRINT_DEBUG_21
