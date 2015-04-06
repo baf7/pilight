@@ -197,8 +197,8 @@ static void createParity(void) {
 }
 
 static int createCode(JsonNode *code) {
-	int unit = -1, id = -1, learn = -1, state = -1, all = 0;
 	double itmp = -1;
+	int unit = -1, id = -1, learn = -1, state = -1, all = 0;
 
 	if(json_find_number(code, "id", &itmp) == 0)
 		id = (int)round(itmp);
@@ -226,6 +226,7 @@ static int createCode(JsonNode *code) {
 		if(unit == -1 && all == 1) {
 			unit = 4;
 		}
+		quigg_gt7000->rawlen = RAW_LENGTH;
 		createMessage(id, state, unit, all, learn);
 		clearCode();
 		createId(id);
@@ -282,7 +283,7 @@ void compatibility(struct module_t *module) {
 	module->name = "quigg_gt7000";
 	module->version = "2.0";
 	module->reqversion = "6.0";
-	module->reqcommit = "00";
+	module->reqcommit = "84";
 }
 
 void init(void) {
