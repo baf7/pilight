@@ -36,13 +36,13 @@
 #define AVG_PULSE_LENGTH	2120
 #define MIN_RAW_LENGTH		41
 #define MAX_RAW_LENGTH		70
-#define RAW_LENGTH				50
+#define RAW_LENGTH			50
 
-#define	PULSE_NINJA_WEATHER_SHORT		1000
+#define PULSE_NINJA_WEATHER_SHORT	1000
 #define PULSE_NINJA_WEATHER_LONG		2000
 #define PULSE_NINJA_WEATHER_FOOTER	AVG_PULSE_LENGTH	// 72080/PULSE_DIV
-#define PULSE_NINJA_WEATHER_LOWER		750		// SHORT*0,75
-#define PULSE_NINJA_WEATHER_UPPER		1250	// SHORT * 1,25
+#define PULSE_NINJA_WEATHER_LOWER	750		// SHORT*0,75
+#define PULSE_NINJA_WEATHER_UPPER	1250		// SHORT * 1,25
 
 typedef struct settings_t {
 	double id;
@@ -65,10 +65,14 @@ static int validate(void) {
 	return -1;
 }
 
+// old
+// static void CreateMessage(int id, int unit, int temperature, int humidity) {
 static void createMessage(int id, int unit, double temperature, double humidity) {
 	ninjablocks_weather->message = json_mkobject();
 	json_append_member(ninjablocks_weather->message, "id", json_mknumber(id, 0));
 	json_append_member(ninjablocks_weather->message, "unit", json_mknumber(unit, 0));
+//	json_append_member(ninjablocks_weather->message, "temperature", json_mknumber(temperature));
+//	json_append_member(ninjablocks_weather->message, "humidity", json_mknumber(humidity*100));
 	json_append_member(ninjablocks_weather->message, "temperature", json_mknumber(temperature/100, 2));
 	json_append_member(ninjablocks_weather->message, "humidity", json_mknumber(humidity, 0));
 }
@@ -78,10 +82,13 @@ static void parseCode(void) {
 	int iParity = 1, iParityData = -1;	// init for even parity
 	int iHeaderSync = 12;				// 1100
 	int iDataSync = 6;					// 110
+//	int temp_offset = 0;
+//	int humi_offset = 0;
 	double temp_offset = 0.0;
 	double humi_offset = 0.0;
 
 	// Decode Biphase Mark Coded Differential Manchester (BMCDM) pulse stream into binary
+//	for(x=0; x<=ninjablocks_weather->binlen; x++) {
 	for(x=0; x<=(RAW_LENGTH/2); x++) {
 		if(ninjablocks_weather->raw[pRaw] > PULSE_NINJA_WEATHER_LOWER &&
 		  ninjablocks_weather->raw[pRaw] < PULSE_NINJA_WEATHER_UPPER) {
@@ -123,7 +130,165 @@ static void parseCode(void) {
 
 	if(iParityData == 0 && (iHeaderSync == headerSync || dataSync == iDataSync)) {
 		createMessage(id, unit, temperature, humidity);
+	} else {
+		if(log_level_get() >= LOG_DEBUG) {
+			logprintf(LOG_ERR, "Parsecode Error: Invalid Parity Bit or Header:");
+			for(x=0;x<=ninjablocks_weather->rawlen;x++) {
+				printf("%d ", ninjablocks_weather->raw[x]);
+			}
+			printf("\n");
+
+			for(x=0;x<=RAW_LENGTH/2;x++) {
+				printf("%d", binary[x]);
+				switch (x) {
+					case 3:
+					case 7:
+					case 9:
+					case 12:
+					case 19:
+					case 34:
+					printf(" ");
+					break;
+					default:
+					break;
+				}
+			}
+		}
+		id=-1;
+		unit=-1;
+		humidity=0.0;
+		temperature=0.0;
 	}
+}
+
+static void createZero(int e) {
+	int i = 0, k = ninjablocks_weather->rawlen+e-1;
+	if(k<=ninjablocks_weather->maxrawlen) {
+		for(i=ninjablocks_weather->rawlen;i<=k;i++) {
+			ninjablocks_weather->raw[i] = (int)PULSE_NINJA_WEATHER_LONG;
+			ninjablocks_weather->rawlen++;
+		}
+	}
+}
+
+static void createOne(int e) {
+	int i = 0, k = ninjablocks_weather->rawlen+e+e-1;
+	if((k+1)<=ninjablocks_weather->maxrawlen) {
+		for(i=ninjablocks_weather->rawlen;i<=k;i+=2) {
+			ninjablocks_weather->raw[i] = (int)PULSE_NINJA_WEATHER_SHORT;	// code a logical 1 pulse
+			ninjablocks_weather->raw[i+1] = ninjablocks_weather->raw[i];
+			// toggle parity bit
+			ninjablocks_weather->raw[ninjablocks_weather->maxrawlen+1]=-ninjablocks_weather->raw[ninjablocks_weather->maxrawlen+1];
+			ninjablocks_weather->rawlen+=2;
+		}
+	}
+}
+
+static void createData(int iParam, int iLength) {
+	int binary[255];
+	int i, length, emptylength;
+	length = decToBin(iParam, binary);
+	// Create leading empty zero pulses and data pulses
+	emptylength=iLength-length-1;
+	for(i=0;i<emptylength;i++) {
+		createZero(1);
+	}
+	for(i=0;i<=length;i++) {
+		if(binary[i] == 1) {
+			createOne(1);
+		} else {
+			createZero(1);
+		}
+	}
+}
+
+static void createHeader(void) {
+	ninjablocks_weather->rawlen=0;							// There is plenty of space in the structure:
+	ninjablocks_weather->raw[ninjablocks_weather->maxrawlen+1]=1;	// init local parity storage to even in memory location after maxlen of raw data buffer
+	createOne(2);
+	createZero(2);
+}
+
+static void clearCode(void) {
+	createHeader();
+	createZero(64);
+	createHeader();
+}
+
+static void createUnit(int unit) {
+	createData(unit, 4);
+}
+
+static void createId(int id) {
+	createData(id, 2);
+}
+
+static void createSync(void) {
+	createOne(2);
+	createZero(1);
+}
+
+static void createHumidity(double humidity) {
+	createData((int)humidity, 7);
+}
+
+static void createTemperature(double temperature) {
+	createData((int)temperature, 15);
+}
+
+static void createParity(void) {
+	if(ninjablocks_weather->raw[ninjablocks_weather->maxrawlen+1] == 1) {
+		createZero(1);	// 1 is Even parity
+	} else {
+		createOne(1);
+	}
+}
+
+static void createFooter(void) {
+	if (ninjablocks_weather->rawlen<=ninjablocks_weather->maxrawlen) {
+		ninjablocks_weather->raw[ninjablocks_weather->rawlen] = PULSE_DIV*PULSE_NINJA_WEATHER_FOOTER;
+		ninjablocks_weather->rawlen++;
+	}
+}
+
+static int createCode(JsonNode *code) {
+	int unit = -1;
+	int id = -1;
+	double humidity = -1.0;
+	double temperature = -275.0;
+	double itmp = -1.0;
+	if(json_find_number(code, "id", &itmp) == 0)	id = (int)round(itmp);
+	if(json_find_number(code, "unit", &itmp) == 0)	unit = (int)round(itmp);
+	if(json_find_number(code, "temperature", &itmp) == 0)	temperature = itmp;
+	if(json_find_number(code, "humidity", &itmp) == 0)	humidity = itmp/100.0;
+	if(id==-1 || unit==-1 || (temperature < -274.0 && humidity < 0.0)) {
+		logprintf(LOG_ERR, "insufficient number of arguments");
+		return EXIT_FAILURE;
+	} else if(id > 3 || id < 0) {
+		logprintf(LOG_ERR, "invalid channel id range");
+		return EXIT_FAILURE;
+	} else if(unit > 15 || unit < 0) {
+		logprintf(LOG_ERR, "invalid main code unit range");
+		return EXIT_FAILURE;
+	} else {
+		createMessage(id, unit, temperature, humidity);
+		clearCode();
+		createUnit(unit);
+		createId(id);
+		createSync();
+		createHumidity(humidity);
+		createTemperature(temperature);
+		createParity();
+		createFooter();
+	}
+	return EXIT_SUCCESS;
+}
+
+static void printHelp(void) {
+	printf("\t -i --id=id\t\t\tchannel code id of reporting unit\n");
+	printf("\t -u --unit=unit\t\t\tmain code unit of reporting unit\n");
+	printf("\t -t --temperature\t\t\ttemperature reported by device\n");
+	printf("\t -h --humidity\t\t\thumidity reported by device\n");
 }
 
 static int checkValues(struct JsonNode *jvalues) {
@@ -195,6 +360,7 @@ static void gc(void) {
 #if !defined(MODULE) && !defined(_WIN32)
 __attribute__((weak))
 #endif
+
 void ninjablocksWeatherInit(void) {
 
 	protocol_register(&ninjablocks_weather);
@@ -221,6 +387,8 @@ void ninjablocksWeatherInit(void) {
 	options_add(&ninjablocks_weather->options, 0, "show-temperature", OPTION_HAS_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 
 	ninjablocks_weather->parseCode=&parseCode;
+	ninjablocks_weather->createCode=&createCode;
+	ninjablocks_weather->printHelp=&printHelp;
 	ninjablocks_weather->checkValues=&checkValues;
 	ninjablocks_weather->validate=&validate;
 	ninjablocks_weather->gc=&gc;
@@ -229,8 +397,8 @@ void ninjablocksWeatherInit(void) {
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "ninjablocks_weather";
-	module->version = "1.0";
-	module->reqversion = "6.0";
+	module->version = "1.1";
+	module->reqversion = "7.0";
 	module->reqcommit = "84";
 }
 
