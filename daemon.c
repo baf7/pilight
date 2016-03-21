@@ -558,7 +558,7 @@ static void receive_parse_api(struct JsonNode *code, int hwtype) {
 		if(protocol->hwtype == hwtype && protocol->parseCommand != NULL) {
 			protocol->parseCommand(code);
 			receiver_create_message(protocol);
-		}		
+		}
 		pnode = pnode->next;
 	}
 }
@@ -566,6 +566,7 @@ static void receive_parse_api(struct JsonNode *code, int hwtype) {
 void *receive_parse_code(void *param) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
+	int il = 0;
 	pthread_mutex_lock(&recvqueue_lock);
 	while(main_loop) {
 		if(recvqueue_number > 0) {
@@ -575,6 +576,15 @@ void *receive_parse_code(void *param) {
 
 			struct protocol_t *protocol = NULL;
 			struct protocols_t *pnode = protocols;
+
+			logprintf(LOG_DEBUG, "**** Received RAW CODE ****");
+			if(log_level_get() >= LOG_DEBUG) {
+				for(il=0;il<recvqueue->rawlen;il++) {
+					printf("%d ", recvqueue->raw[il]);
+				}
+				printf("\n");
+			}
+			logprintf(LOG_DEBUG, "***************************");
 
 			while(pnode != NULL && main_loop) {
 				protocol = pnode->listener;
