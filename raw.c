@@ -100,7 +100,7 @@ void *receiveOOK(void *param) {
 		if(duration > 0) {
 			if(linefeed == 1) {
 				if(duration > 5100) {
-					printf(" %d -#: %d %d\n%s: ",duration, iLoop, duration_sum, hw->id);
+					printf(" %d -#: %d %ld\n%s: ",duration, iLoop, duration_sum, hw->id);
 					iLoop = 0;
 					duration_sum = 0;
 				} else {
@@ -131,7 +131,7 @@ void *receivePulseTrain(void *param) {
 					printf(" %d", r.pulses[i]);
 					duration_sum = duration_sum + r.pulses[i];
 					if(r.pulses[i] > 5100) {
-						printf(" -# %d %d\n %s:", i, duration_sum, hw->id);
+						printf(" -# %d %ld\n %s:", i, duration_sum, hw->id);
 						duration_sum = 0;
 					}
 				} else {
