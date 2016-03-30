@@ -27,15 +27,12 @@
 #include <math.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#ifdef _WIN32
-	#include "pthread.h"
-	#include "implement.h"
-#else
+#ifndef _WIN32
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "../../core/pilight.h"
 #include "../../core/common.h"
@@ -74,8 +71,8 @@ static void *thread(void *param) {
 	char *stmp = NULL;
 	double itmp = -1, temp_offset = 0;
 
-	if(!lm76data) {
-		logprintf(LOG_ERR, "out of memory");
+	if(lm76data == NULL) {
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -89,14 +86,12 @@ static void *thread(void *param) {
 		jchild = json_first_child(jid);
 		while(jchild) {
 			if(json_find_string(jchild, "id", &stmp) == 0) {
-				lm76data->id = REALLOC(lm76data->id, (sizeof(char *)*(size_t)(lm76data->nrid+1)));
-				if(!lm76data->id) {
-					logprintf(LOG_ERR, "out of memory");
+				if((lm76data->id = REALLOC(lm76data->id, (sizeof(char *)*(size_t)(lm76data->nrid+1)))) == NULL) {
+					fprintf(stderr, "out of memory\n");
 					exit(EXIT_FAILURE);
 				}
-				lm76data->id[lm76data->nrid] = MALLOC(strlen(stmp)+1);
-				if(!lm76data->id[lm76data->nrid]) {
-					logprintf(LOG_ERR, "out of memory");
+				if((lm76data->id[lm76data->nrid] = MALLOC(strlen(stmp)+1)) == NULL) {
+					fprintf(stderr, "out of memory\n");
 					exit(EXIT_FAILURE);
 				}
 				strcpy(lm76data->id[lm76data->nrid], stmp);
@@ -110,9 +105,8 @@ static void *thread(void *param) {
 		interval = (int)round(itmp);
 	json_find_number(json, "temperature-offset", &temp_offset);
 
-	lm76data->fd = REALLOC(lm76data->fd, (sizeof(int)*(size_t)(lm76data->nrid+1)));
-	if(!lm76data->fd) {
-		logprintf(LOG_ERR, "out of memory");
+	if((lm76data->fd = REALLOC(lm76data->fd, (sizeof(int)*(size_t)(lm76data->nrid+1)))) == NULL) {
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	for(y=0;y<lm76data->nrid;y++) {
@@ -142,7 +136,7 @@ static void *thread(void *param) {
 					json_delete(lm76->message);
 					lm76->message = NULL;
 				} else {
-					logprintf(LOG_DEBUG, "error connecting to lm76");
+					logprintf(LOG_NOTICE, "error connecting to lm76");
 					logprintf(LOG_DEBUG, "(probably i2c bus error from wiringXI2CSetup)");
 					logprintf(LOG_DEBUG, "(maybe wrong id? use i2cdetect to find out)");
 					protocol_thread_wait(node, 1, &nrloops);
@@ -174,15 +168,18 @@ static void *thread(void *param) {
 }
 
 static struct threadqueue_t *initDev(JsonNode *jdevice) {
-	loop = 1;
-	wiringXSetup();
+	if(wiringXSupported() == 0 && wiringXSetup() == 0) {
+		loop = 1;
 
-	char *output = json_stringify(jdevice, NULL);
-	JsonNode *json = json_decode(output);
-	json_free(output);
+		char *output = json_stringify(jdevice, NULL);
+		JsonNode *json = json_decode(output);
+		json_free(output);
 
-	struct protocol_threads_t *node = protocol_thread_init(lm76, json);
-	return threads_register("lm76", &thread, (void *)node, 0);
+		struct protocol_threads_t *node = protocol_thread_init(lm76, json);
+		return threads_register("lm76", &thread, (void *)node, 0);
+	} else {
+		return NULL;
+	}
 }
 
 static void threadGC(void) {

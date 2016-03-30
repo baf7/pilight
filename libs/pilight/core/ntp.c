@@ -29,14 +29,11 @@
 #ifdef _WIN32
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
-	#include "pthread.h"
-	#include "implement.h"
 	#define MSG_NOSIGNAL 0
 #else
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 	#include <sys/socket.h>
 	#include <sys/time.h>
 	#include <netinet/in.h>
@@ -44,10 +41,11 @@
 	#include <netdb.h>
 	#include <arpa/inet.h>
 #endif
+#include <pthread.h>
 #include <stdint.h>
 #include <time.h>
 
-#include "common.h"
+#include "network.h"
 #include "socket.h"
 #include "pilight.h"
 #include "../config/settings.h"
@@ -106,7 +104,7 @@ void *ntpthread(void *param) {
 	while(1) {
 		sprintf(name, "ntpserver%d", nrservers);
 		if((ntpservers = REALLOC(ntpservers, sizeof(char *)*(nrservers+1))) == NULL) {
-			logprintf(LOG_ERR, "out of memory");
+			fprintf(stderr, "out of memory\n");
 			exit(EXIT_FAILURE);
 		}
 		if((x = settings_find_string(name, &ntpservers[nrservers])) == 0) {
@@ -133,7 +131,7 @@ void *ntpthread(void *param) {
 
 	if(WSAStartup(0x202, &wsa) != 0) {
 		logprintf(LOG_ERR, "could not initialize new socket");
-		return -1;
+		return (void *)NULL;
 	}
 #endif
 
@@ -153,7 +151,7 @@ void *ntpthread(void *param) {
 				}
 
 				if((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-					logprintf(LOG_ERR, "Error in ntp server socket connection @%s", ntpservers[x]);
+					logprintf(LOG_ERR, "error in ntp server socket connection @%s", ntpservers[x]);
 				} else {
 					memset(&servaddr, '\0', sizeof(servaddr));
 					servaddr.sin_family = AF_INET;
@@ -163,15 +161,15 @@ void *ntpthread(void *param) {
 
 					switch(socket_timeout_connect(sockfd, (struct sockaddr *)&servaddr, timeout)) {
 						case -1:
-							logprintf(LOG_ERR, "could not connect to ntp server @%s", ntpservers[x]);
+							logprintf(LOG_NOTICE, "could not connect to ntp server @%s", ntpservers[x]);
 							continue;
 						break;
 						case -2:
-							logprintf(LOG_ERR, "ntp server connection timeout @%s", ntpservers[x]);
+							logprintf(LOG_NOTICE, "ntp server connection timeout @%s", ntpservers[x]);
 							continue;
 						break;
 						case -3:
-							logprintf(LOG_ERR, "Error in ntp server socket connection @%s", ntpservers[x]);
+							logprintf(LOG_NOTICE, "error in ntp server socket connection @%s", ntpservers[x]);
 							continue;
 						break;
 						default:
@@ -185,10 +183,10 @@ void *ntpthread(void *param) {
 #endif
 					msg.li_vn_mode=227;
 					if(sendto(sockfd, (char *)&msg, 48, 0, (struct sockaddr *)&servaddr, sizeof(servaddr)) < -1) {
-						logprintf(LOG_ERR, "error in sending");
+						logprintf(LOG_NOTICE, "error in ntp sending");
 					} else {
 						if(recvfrom(sockfd, (void *)&msg, 48, 0, NULL, NULL) < -1) {
-							logprintf(LOG_ERR, "error in receiving");
+							logprintf(LOG_NOTICE, "error in ntp receiving");
 						} else {
 							if(msg.refid > 0) {
 								(msg.rec).Ul_i.Xl_ui = ntohl((msg.rec).Ul_i.Xl_ui);

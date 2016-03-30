@@ -19,11 +19,7 @@
 #ifndef _DEVICES_H_
 #define _DEVICES_H_
 
-#ifdef _WIN32
-	#include "pthread.h"
-#else
-	#include <pthread.h>
-#endif
+#include <pthread.h>
 
 typedef struct devices_settings_t devices_settings_t;
 typedef struct devices_values_t devices_values_t;
@@ -87,6 +83,8 @@ struct devices_t {
 #ifdef EVENTS
 	int lastrule;
 	int prevrule;
+	enum origin_t lastorigin;
+	enum origin_t prevorigin;
 	struct event_action_thread_t *action_thread;
 #endif
 	struct protocols_t *protocols;

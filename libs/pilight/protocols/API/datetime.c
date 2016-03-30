@@ -29,14 +29,11 @@
 #ifdef _WIN32
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
-	#include "pthread.h"
-	#include "implement.h"
 	#define MSG_NOSIGNAL 0
 #else
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 	#include <sys/socket.h>
 	#include <sys/time.h>
 	#include <netinet/in.h>
@@ -44,6 +41,7 @@
 	#include <netdb.h>
 	#include <arpa/inet.h>
 #endif
+#include <pthread.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -67,7 +65,7 @@ static char *format = NULL;
 
 static pthread_mutex_t lock;
 
-static void *thread(void *param) {	
+static void *thread(void *param) {
 	char UTC[] = "UTC";
 	struct protocol_threads_t *thread = (struct protocol_threads_t *)param;
 	struct JsonNode *json = (struct JsonNode *)thread->param;
@@ -123,7 +121,9 @@ static void *thread(void *param) {
 
 		/* Get UTC time */
 #ifdef _WIN32
-		if((tm = gmtime(&t)) != NULL) {
+		struct tm *tm1;
+		if((tm1 = gmtime(&t)) != NULL) {
+			memcpy(&tm, tm1, sizeof(struct tm));
 #else
 		if(gmtime_r(&t, &tm) != NULL) {
 #endif
@@ -140,7 +140,7 @@ static void *thread(void *param) {
 			int weekday = tm.tm_wday+1;
 
 			datefix(&year, &month, &day, &hour, &minute, &second);
-			
+
 			if((minute == 0 && second == 0) || (isntpsynced() == 0 && x == 0)) {
 				x = 1;
 				dst = isdst(t, tz);

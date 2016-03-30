@@ -60,6 +60,11 @@ static void parseCode(void) {
 	int channel = 0, id = 0, battery = 0;
 	double temp_offset = 0.0, temperature = 0.0;
 
+	if(auriol->rawlen>RAW_LENGTH) {
+		logprintf(LOG_ERR, "auriol: parsecode - invalid parameter passed %d", auriol->rawlen);
+		return;
+	}
+
 	for(x=1;x<auriol->rawlen-2;x+=2) {
 		if(auriol->raw[x] > AVG_PULSE_LENGTH*PULSE_MULTIPLIER) {
 			binary[i++] = 1;
@@ -125,7 +130,7 @@ static int checkValues(struct JsonNode *jvalues) {
 
 		if(match == 0) {
 			if((snode = MALLOC(sizeof(struct settings_t))) == NULL) {
-				logprintf(LOG_ERR, "out of memory");
+				fprintf(stderr, "out of memory\n");
 				exit(EXIT_FAILURE);
 			}
 			snode->id = id;
@@ -186,7 +191,7 @@ void auriolInit(void) {
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "auriol";
-	module->version = "2.0";
+	module->version = "2.1";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }

@@ -19,17 +19,14 @@
 #ifndef _PROTOCOL_H_
 #define _PROTOCOL_H_
 
-#ifdef _WIN32
-	#include "pthread.h"
-	#include "implement.h"
-#else
+#ifndef _WIN32
 	#ifdef __mips__
 		#ifndef __USE_UNIX98
 			#define __USE_UNIX98
 		#endif
 	#endif
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "defines.h"
 #include "../core/options.h"
@@ -57,7 +54,8 @@ typedef enum {
 	MOTION,
 	DUSK,
 	PING,
-	LABEL
+	LABEL,
+	ALARM
 } devtype_t;
 
 typedef struct protocol_devices_t {
@@ -100,7 +98,10 @@ typedef struct protocol_t {
 	struct protocol_devices_t *devices;
 	struct protocol_threads_t *threads;
 
-	void (*parseCode)(void);
+	union {
+		void (*parseCode)(void);
+		void (*parseCommand)(struct JsonNode *code);
+	};
 	int (*validate)(void);
 	int (*createCode)(JsonNode *code);
 	int (*checkValues)(JsonNode *code);

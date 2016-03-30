@@ -26,7 +26,6 @@
 #ifdef _WIN32
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
-	#include "pthread.h"
 	#define MSG_NOSIGNAL 0
 #else
 	#include <sys/socket.h>
@@ -35,18 +34,16 @@
 	#include <netinet/tcp.h>
 	#include <netdb.h>
 	#include <arpa/inet.h>
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <pthread.h>
 #include <ctype.h>
 
 #include "libs/pilight/core/pilight.h"
-#include "libs/pilight/core/common.h"
+#include "libs/pilight/core/network.h"
 #include "libs/pilight/core/log.h"
 #include "libs/pilight/core/options.h"
-#include "libs/pilight/core/ssdp.h"
 #include "libs/pilight/core/gc.h"
 
 int main_gc(void) {
@@ -79,7 +76,7 @@ int main(int argc, char **argv) {
 	char *args = NULL;
 
 	if((progname = MALLOC(13)) == NULL) {
-		logprintf(LOG_ERR, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	strcpy(progname, "pilight-uuid");
@@ -126,10 +123,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-	for(x=0;x<nrdevs;x++) {
-		FREE(devs[x]);
-	}
-	FREE(devs);
+	array_free(&devs, nrdevs);
 
 	printf("%s\n", pilight_uuid);
 

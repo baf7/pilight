@@ -27,15 +27,12 @@
 #include <fcntl.h>
 #include <math.h>
 #include <sys/stat.h>
-#ifdef _WIN32
-	#include "pthread.h"
-	#include "implement.h"
-#else
+#ifndef _WIN32
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "../../core/pilight.h"
 #include "../../core/common.h"
@@ -64,6 +61,7 @@ static uint8_t sizecvt(const int read_value) {
 	   < 256. However, they are returned as int() types. This is a safety function */
 	if(read_value > 255 || read_value < 0) {
 		logprintf(LOG_NOTICE, "invalid data from wiringX library");
+		return -1;
 	}
 
 	return (uint8_t)read_value;
@@ -75,7 +73,7 @@ static void *dht11Parse(void *param) {
 	struct JsonNode *jid = NULL;
 	struct JsonNode *jchild = NULL;
 	int *id = 0;
-	int nrid = 0, y = 0, interval = 10, nrloops = 0;
+	int nrid = 0, y = 0, interval = 10, nrloops = 0, x = 0;
 	double temp_offset = 0.0, humi_offset = 0.0, itmp = 0.0;
 
 	threads++;
@@ -125,7 +123,8 @@ static void *dht11Parse(void *param) {
 					for(i=0; (i<MAXTIMINGS && loop); i++) {
 						counter = 0;
 						delayMicroseconds(10);
-						while(sizecvt(digitalRead(id[y])) == laststate && loop) {
+
+						while((x = sizecvt(digitalRead(id[y]))) == laststate && x != -1 && loop) {
 							counter++;
 							delayMicroseconds(1);
 							if(counter == 255) {
@@ -134,8 +133,9 @@ static void *dht11Parse(void *param) {
 						}
 						laststate = sizecvt(digitalRead(id[y]));
 
-						if(counter == 255)
+						if(counter == 255) {
 							break;
+						}
 
 						// ignore first 3 transitions
 						if((i >= 4) && (i%2 == 0)) {
@@ -191,14 +191,17 @@ static void *dht11Parse(void *param) {
 }
 
 static struct threadqueue_t *initDev(JsonNode *jdevice) {
-	loop = 1;
-	wiringXSetup();
-	char *output = json_stringify(jdevice, NULL);
-	JsonNode *json = json_decode(output);
-	json_free(output);
+	if(wiringXSupported() == 0 && wiringXSetup() == 0) {
+		loop = 1;
+		char *output = json_stringify(jdevice, NULL);
+		JsonNode *json = json_decode(output);
+		json_free(output);
 
-	struct protocol_threads_t *node = protocol_thread_init(dht11, json);
-	return threads_register("dht11", &dht11Parse, (void *)node, 0);
+		struct protocol_threads_t *node = protocol_thread_init(dht11, json);
+		return threads_register("dht11", &dht11Parse, (void *)node, 0);
+	} else {
+		return NULL;
+	}
 }
 
 static void threadGC(void) {
@@ -208,6 +211,32 @@ static void threadGC(void) {
 		usleep(10);
 	}
 	protocol_thread_free(dht11);
+}
+
+static int checkValues(JsonNode *code) {
+	struct JsonNode *jid = NULL;
+	struct JsonNode *jchild = NULL;
+	double itmp = -1;
+
+	/* Validate GPIO number */
+	if((jid = json_find_member(code, "id")) != NULL) {
+		if((jchild = json_find_element(jid, 0)) != NULL) {
+			if(json_find_number(jchild, "gpio", &itmp) == 0) {
+				if(wiringXSupported() == 0) {
+					int gpio = (int)itmp;
+					if(wiringXSetup() < 0) {
+						logprintf(LOG_ERR, "unable to setup wiringX") ;
+						return -1;
+					} else if(wiringXValidGPIO(gpio) != 0) {
+						logprintf(LOG_ERR, "relay: invalid gpio range");
+						return -1;
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
 }
 #endif
 
@@ -229,7 +258,7 @@ void dht11Init(void) {
 
 	options_add(&dht11->options, 't', "temperature", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 	options_add(&dht11->options, 'h', "humidity", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-	options_add(&dht11->options, 'g', "gpio", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, "^([0-9]{1}|1[0-9]|20)$");
+	options_add(&dht11->options, 'g', "gpio", OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, NULL);
 
 	// options_add(&dht11->options, 0, "decimals", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)1, "[0-9]");
 	options_add(&dht11->options, 0, "temperature-offset", OPTION_HAS_VALUE, DEVICES_SETTING, JSON_NUMBER, (void *)0, "[0-9]");
@@ -243,13 +272,14 @@ void dht11Init(void) {
 #if !defined(__FreeBSD__) && !defined(_WIN32)
 	dht11->initDev=&initDev;
 	dht11->threadGC=&threadGC;
+	dht11->checkValues=&checkValues;
 #endif
 }
 
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "dht11";
-	module->version = "2.0";
+	module->version = "2.4";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }

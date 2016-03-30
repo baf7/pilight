@@ -26,15 +26,12 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <sys/stat.h>
-#ifdef _WIN32
-	#include "pthread.h"
-	#include "implement.h"
-#else
+#ifndef _WIN32
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "pilight.h"
 #include "common.h"
@@ -61,7 +58,6 @@ static unsigned int pthfree = 0;
 static pthread_t pth;
 
 static char *logfile = NULL;
-static char *logpath = NULL;
 static int filelog = 1;
 static int shelllog = 0;
 static int loglevel = LOG_DEBUG;
@@ -148,9 +144,6 @@ int log_gc(void) {
 	if(logfile != NULL) {
 		FREE(logfile);
 	}
-	if(logpath != NULL) {
-		FREE(logpath);
-	}
 	return 1;
 }
 
@@ -159,15 +152,12 @@ void logprintf(int prio, const char *format_str, ...) {
 	struct tm tm;
 	va_list ap, apcpy;
 	char fmt[64], buf[64], *line = MALLOC(128);
-#ifndef _WIN32
-	char nul;
-#endif
 	int save_errno = -1, pos = 0, bytes = 0;
 
 	memset(&tm, '\0', sizeof(struct tm));
 
 	if(line == NULL) {
-		fprintf(stderr, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	save_errno = errno;
@@ -178,7 +168,9 @@ void logprintf(int prio, const char *format_str, ...) {
 	if(loglevel >= prio) {
 		gettimeofday(&tv, NULL);
 #ifdef _WIN32
-		if((gmtime(&tv.tv_sec)) != 0) {
+		struct tm *tm1;
+		if((tm1 = gmtime(&tv.tv_sec)) != 0) {
+			memcpy(&tm, tm1, sizeof(struct tm));
 #else
 		if((gmtime_r(&tv.tv_sec, &tm)) != 0) {
 #endif
@@ -222,7 +214,7 @@ void logprintf(int prio, const char *format_str, ...) {
 		} else {
 			va_end(apcpy);
 			if((line = REALLOC(line, (size_t)bytes+(size_t)pos+3)) == NULL) {
-				fprintf(stderr, "out of memory");
+				fprintf(stderr, "out of memory\n");
 				exit(EXIT_FAILURE);
 			}
 			va_start(ap, format_str);
@@ -236,8 +228,8 @@ void logprintf(int prio, const char *format_str, ...) {
 		fprintf(stderr, "%s", line);
 	}
 #ifdef _WIN32
-	if(prio == LOG_ERR && strstr(progname, "daemon") != NULL) {
-		//MessageBox(NULL, line, "pilight :: error", MB_OK);
+	if(prio == LOG_ERR && strstr(progname, "daemon") != NULL && pilight.running == 0) {
+		MessageBox(NULL, line, "pilight :: error", MB_OK);
 	}
 #endif
 	if(stop == 0 && pos > 0) {
@@ -248,11 +240,11 @@ void logprintf(int prio, const char *format_str, ...) {
 			if(logqueue_number < 1024) {
 				struct logqueue_t *node = MALLOC(sizeof(logqueue_t));
 				if(node == NULL) {
-					fprintf(stderr, "out of memory");
+					fprintf(stderr, "out of memory\n");
 					exit(EXIT_FAILURE);
 				}
 				if((node->line = MALLOC((size_t)pos+1)) == NULL) {
-					fprintf(stderr, "out of memory");
+					fprintf(stderr, "out of memory\n");
 					exit(EXIT_FAILURE);
 				}
 				memset(node->line, '\0', (size_t)pos+1);
@@ -348,6 +340,7 @@ void log_shell_disable(void) {
 int log_file_set(char *log) {
 	struct stat s;
 	struct stat sb;
+	char *logpath = NULL;
 	FILE *lf = NULL;
 
 	atomiclock();
@@ -356,7 +349,10 @@ int log_file_set(char *log) {
 	atomicunlock();
 
 	size_t i = (strlen(log)-strlen(filename));
-	logpath = REALLOC(logpath, i+1);
+	if((logpath = REALLOC(logpath, i+1)) == NULL) {
+		fprintf(stderr, "out of memory\n");
+		exit(EXIT_FAILURE);
+	}
 	memset(logpath, '\0', i+1);
 	strncpy(logpath, log, i);
 
@@ -383,7 +379,10 @@ int log_file_set(char *log) {
 			}
 		} else {
 			if(S_ISDIR(s.st_mode)) {
-				logfile = REALLOC(logfile, strlen(log)+1);
+				if((logfile = REALLOC(logfile, strlen(log)+1)) == NULL) {
+					fprintf(stderr, "out of memory\n");
+					exit(EXIT_FAILURE);
+				}
 				strcpy(logfile, log);
 			} else {
 				logprintf(LOG_ERR, "the log folder %s does not exist", logpath);
@@ -392,7 +391,10 @@ int log_file_set(char *log) {
 			}
 		}
 	} else {
-		logfile = REALLOC(logfile, strlen(log)+1);
+		if((logfile = REALLOC(logfile, strlen(log)+1)) == NULL) {
+			fprintf(stderr, "out of memory\n");
+			exit(EXIT_FAILURE);
+		}
 		strcpy(logfile, log);
 	}
 

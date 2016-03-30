@@ -31,7 +31,7 @@
 #include "arctech_switch_old.h"
 
 #define PULSE_MULTIPLIER	3
-#define MIN_PULSE_LENGTH	320
+#define MIN_PULSE_LENGTH	310
 #define MAX_PULSE_LENGTH	405
 #define AVG_PULSE_LENGTH	335
 #define RAW_LENGTH				50
@@ -61,16 +61,35 @@ static void parseCode(void) {
 	int binary[RAW_LENGTH/4], x = 0, i = 0;
 	int len = (int)((double)AVG_PULSE_LENGTH*((double)PULSE_MULTIPLIER/2));
 
-	for(x=0;x<arctech_switch_old->rawlen;x+=4) {
+	if(arctech_switch_old->rawlen>RAW_LENGTH) {
+		logprintf(LOG_ERR, "arctech_switch_old: parsecode - invalid parameter passed %d", arctech_switch_old->rawlen);
+		return;
+	}
+
+	for(x=0;x<arctech_switch_old->rawlen-3;x+=4) {
+		// valid telegrams must consist of 0110 and 1001 blocks
+		int low_high = 0;
+		if(arctech_switch_old->raw[x] > len) {
+			low_high |= 1;
+		}
+		if(arctech_switch_old->raw[x+1] > len) {
+			low_high |= 2;
+		}
 		if(arctech_switch_old->raw[x+2] > len) {
-			binary[i++] = 1;
-		} else if(x+3 < arctech_switch_old->rawlen && 
-		          arctech_switch_old->raw[x+3] < len && 
-							arctech_switch_old->raw[x+2] < len) {
-			/* Not arctech_switch_old */
-			return;
-		} else {
-			binary[i++] = 0;
+			low_high |= 4;
+		}
+		if(arctech_switch_old->raw[x+3] > len) {
+			low_high |= 8;
+		}
+		switch(low_high) {
+			case 6:
+				binary[i++] = 1;
+			break;
+			case 10:
+				binary[i++] = 0;
+			break;
+			default:
+				return; // invalid telegram
 		}
 	}
 
@@ -226,7 +245,7 @@ void arctechSwitchOldInit(void) {
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_switch_old";
-	module->version = "2.3";
+	module->version = "2.5";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }

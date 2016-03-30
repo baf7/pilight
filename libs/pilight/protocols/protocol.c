@@ -22,16 +22,12 @@
 #include <dirent.h>
 #include <sys/time.h>
 #include <sys/stat.h>
-#include <sys/stat.h>
-#ifdef _WIN32
-	#include "pthread.h"
-	#include "implement.h"
-#else
+#ifndef _WIN32
 	#ifdef __mips__
 		#define __USE_UNIX98
 	#endif
-	#include <pthread.h>
 #endif
+#include <pthread.h>
 
 #include "../core/pilight.h"
 #include "../core/common.h"
@@ -42,12 +38,7 @@
 #include "../config/settings.h"
 
 #include "protocol.h"
-#include "433.92/protocol_header.h"
-#include "API/protocol_header.h"
-#include "generic/protocol_header.h"
-#include "GPIO/protocol_header.h"
-#include "network/protocol_header.h"
-#include "core/protocol_header.h"
+#include "protocol_header.h"
 
 struct protocols_t *protocols;
 
@@ -102,12 +93,7 @@ void protocol_remove(char *name) {
 void protocol_init(void) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	#include "433.92/protocol_init.h"
-	#include "API/protocol_init.h"
-	#include "generic/protocol_init.h"
-	#include "GPIO/protocol_init.h"
-	#include "network/protocol_init.h"
-	#include "core/protocol_init.h"
+	#include "protocol_init.h"
 
 #ifndef _WIN32
 	void *handle = NULL;
@@ -129,8 +115,8 @@ void protocol_init(void) {
 
 	if(settings_find_string("protocol-root", &protocol_root) != 0) {
 		/* If no protocol root was set, use the default protocol root */
-		if(!(protocol_root = MALLOC(strlen(PROTOCOL_ROOT)+1))) {
-			logprintf(LOG_ERR, "out of memory");
+		if((protocol_root = MALLOC(strlen(PROTOCOL_ROOT)+1)) == NULL) {
+			fprintf(stderr, "out of memory\n");
 			exit(EXIT_FAILURE);
 		}
 		strcpy(protocol_root, PROTOCOL_ROOT);
@@ -209,7 +195,7 @@ void protocol_register(protocol_t **proto) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
 	if((*proto = MALLOC(sizeof(struct protocol_t))) == NULL) {
-		logprintf(LOG_ERR, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	(*proto)->options = NULL;
@@ -227,6 +213,7 @@ void protocol_register(protocol_t **proto) {
 	(*proto)->config = 1;
 	(*proto)->masterOnly = 0;
 	(*proto)->parseCode = NULL;
+	(*proto)->parseCommand = NULL;
 	(*proto)->createCode = NULL;
 	(*proto)->checkValues = NULL;
 	(*proto)->initDev = NULL;
@@ -244,7 +231,7 @@ void protocol_register(protocol_t **proto) {
 
 	struct protocols_t *pnode = MALLOC(sizeof(struct protocols_t));
 	if(pnode == NULL) {
-		logprintf(LOG_ERR, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	pnode->listener = *proto;
@@ -257,7 +244,7 @@ struct protocol_threads_t *protocol_thread_init(protocol_t *proto, struct JsonNo
 
 	struct protocol_threads_t *node = MALLOC(sizeof(struct protocol_threads_t));
 	if(node == NULL) {
-		logprintf(LOG_ERR, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -331,8 +318,8 @@ void protocol_thread_free(protocol_t *proto) {
 void protocol_set_id(protocol_t *proto, const char *id) {
 	logprintf(LOG_STACK, "%s(...)", __FUNCTION__);
 
-	if(!(proto->id = MALLOC(strlen(id)+1))) {
-		logprintf(LOG_ERR, "out of memory");
+	if((proto->id = MALLOC(strlen(id)+1)) == NULL) {
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	strcpy(proto->id, id);
@@ -343,16 +330,16 @@ void protocol_device_add(protocol_t *proto, const char *id, const char *desc) {
 
 	struct protocol_devices_t *dnode = MALLOC(sizeof(struct protocol_devices_t));
 	if(dnode == NULL) {
-		logprintf(LOG_ERR, "out of memory");
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
-	if(!(dnode->id = MALLOC(strlen(id)+1))) {
-		logprintf(LOG_ERR, "out of memory");
+	if((dnode->id = MALLOC(strlen(id)+1)) == NULL) {
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	strcpy(dnode->id, id);
-	if(!(dnode->desc = MALLOC(strlen(desc)+1))) {
-		logprintf(LOG_ERR, "out of memory");
+	if((dnode->desc = MALLOC(strlen(desc)+1)) == NULL) {
+		fprintf(stderr, "out of memory\n");
 		exit(EXIT_FAILURE);
 	}
 	strcpy(dnode->desc, desc);

@@ -30,7 +30,7 @@
 #include "../../core/gc.h"
 #include "teknihall.h"
 
-#define PULSE_MULTIPLIER	15
+#define PULSE_MULTIPLIER	20
 #define MIN_PULSE_LENGTH	261
 #define MAX_PULSE_LENGTH	271
 #define AVG_PULSE_LENGTH	266
@@ -61,6 +61,11 @@ static void parseCode(void) {
 	int id = 0, battery = 0;
 	double temperature = 0.0, humidity = 0.0;
 	double humi_offset = 0.0, temp_offset = 0.0;
+
+	if(teknihall->rawlen>RAW_LENGTH) {
+		logprintf(LOG_ERR, "teknihall: parsecode - invalid parameter passed %d", teknihall->rawlen);
+		return;
+	}
 
 	for(x=1;x<teknihall->rawlen-1;x+=2) {
 		if(teknihall->raw[x] > (int)((double)AVG_PULSE_LENGTH*((double)PULSE_MULTIPLIER/2))) {
@@ -128,7 +133,7 @@ static int checkValues(struct JsonNode *jvalues) {
 
 		if(match == 0) {
 			if((snode = MALLOC(sizeof(struct settings_t))) == NULL) {
-				logprintf(LOG_ERR, "out of memory");
+				fprintf(stderr, "out of memory\n");
 				exit(EXIT_FAILURE);
 			}
 			snode->id = id;
@@ -195,7 +200,7 @@ void teknihallInit(void) {
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "teknihall";
-	module->version = "2.1";
+	module->version = "2.3";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }
