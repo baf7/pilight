@@ -89,16 +89,20 @@ int main_gc(void) {
 
 void *receiveOOK(void *param) {
 	int duration = 0, iLoop = 0;
+	long int duration_sum = 0;
 
 	struct hardware_t *hw = (hardware_t *)param;
 	while(main_loop && hw->receiveOOK) {
 		duration = hw->receiveOOK();
+		duration_sum = duration_sum + duration;
 		iLoop++;
+
 		if(duration > 0) {
 			if(linefeed == 1) {
 				if(duration > 5100) {
-					printf(" %d -#: %d\n%s: ",duration, iLoop, hw->id);
+					printf(" %d -#: %d %ld\n%s: ",duration, iLoop, duration_sum, hw->id);
 					iLoop = 0;
+					duration_sum = 0;
 				} else {
 					printf(" %d", duration);
 				}
@@ -113,8 +117,9 @@ void *receiveOOK(void *param) {
 void *receivePulseTrain(void *param) {
 	struct rawcode_t r;
 	int i = 0;
-
+	long int duration_sum = 0;
 	struct hardware_t *hw = (hardware_t *)param;
+
 	while(main_loop && hw->receivePulseTrain) {
 		hw->receivePulseTrain(&r);
 		if(r.length == -1) {
@@ -124,8 +129,10 @@ void *receivePulseTrain(void *param) {
 			for(i=0;i<r.length;i++) {
 				if(linefeed == 1) {
 					printf(" %d", r.pulses[i]);
+					duration_sum = duration_sum + r.pulses[i];
 					if(r.pulses[i] > 5100) {
-						printf(" -# %d\n %s:", i, hw->id);
+						printf(" -# %d %ld\n %s:", i, duration_sum, hw->id);
+						duration_sum = 0;
 					}
 				} else {
 					printf("%s: %d\n", hw->id, r.pulses[i]);
