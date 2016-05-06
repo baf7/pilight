@@ -1642,6 +1642,7 @@ int flag_oregon_21 = 0;
 							}
 							r.length--; // Adjust pointer
 							preamb_pulse_counter--; // Adjust counter
+							logprintf(LOG_DEBUG,"\n");
 						}
                         // if panic - ensure that we do not override the WFH state
                         if (preamb_state!=WAIT_FOR_END_OF_HEADER)
@@ -1697,6 +1698,14 @@ int flag_oregon_21 = 0;
 					/* Let's do a little filtering here as well */
 					if(r.length >= hw->minrawlen && r.length <= hw->maxrawlen) {
 						receive_queue(r.pulses, r.length, plslen, hw->hwtype);
+					}
+					logprintf(LOG_DEBUG, "Test duration of Call");
+					if(log_level_get() >= LOG_DEBUG) {
+						printf("\nrawlen %d plslen %d \n**** rawcode: ", r.pulses, plslen);
+						for (i_loop=0;i_loop<=r.length;i_loop++) {
+							printf(" %d",rawcode[i_loop]);
+						}
+						printf("\n");
 					}
 					r.length = 0;
 					preamb_duration = 0;
