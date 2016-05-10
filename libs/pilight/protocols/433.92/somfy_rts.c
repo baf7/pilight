@@ -161,7 +161,7 @@ static void createMessage(int address, int command, int rollingcode, int rolling
 }
 
 static void parseCode(void) {
-	int i;
+	int i, x;
 	int pBin = 0, pRaw = 0;
 	int protocol_sync = 0, rDataLow = 0, rDataTime = 0;
 	int repeats = 0, rollingcode = 0, rollingkey = 0, binary[MAXPULSESTREAMLENGTH] = { 0 };
@@ -198,15 +198,18 @@ static void parseCode(void) {
 			protocol_sync=2;
 			if( rDataTime > PULSE_SOMFY_SHORT_L && rDataTime < PULSE_SOMFY_SHORT_H) {
 			// No Data pulse, Sync only
+				logprintf(LOG_DEBUG, "somfy_rts: First pulse: Sync detected");
 				rDataTime=0;
 			} else if  (rDataTime > PULSE_SOMFY_LONG_L && rDataTime < PULSE_SOMFY_LONG_H) {
 			// if it is 1st pulse, we are now in the middile of the pulse windows
+				logprintf(LOG_DEBUG, "somfy_rts: First pulse: Data detected");
 				rDataTime = PULSE_SOMFY_SHORT;
 				binary[pBin]=1;
 				pBin=pBin+1;
 				if(pBin>pMaxbin)pMaxbin = pBin;
 			} else {
 			// if it is neither a short nor a long pulse, we try to find another SYNC pulse
+				logprintf(LOG_DEBUG, "somfy_rts: First pulse: Not followed by valid data pulse - try to find another SYNC");
 				protocol_sync=0;
 			}
 			break;
@@ -216,11 +219,13 @@ static void parseCode(void) {
 			if(    (somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L && somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H)
 				|| (somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L_1 && somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H_1) ) {
 				if (pBin==56) {
-					protocol_sync=4;	// We received all 56 classic frame bits plus 24 supplementary bits
+					logprintf(LOG_DEBUG, "somfy_rts: 2a-4: 56 Bits of classic pulsetrain received");
+					protocol_sync=4;	// We received all 56 classic frame bits
 				} else {
 					if (pBin==80) {
 						protocol_sync=3;	// We received all 56 classic frame bits plus 24 supplementary bits
 					} else {
+						logprintf(LOG_DEBUG, "somfy_rts: 2b-96: Error in decoding payload. We got %d binary bits (neither 56 nor 80) - distorted raw data ?",pBin);
 						protocol_sync=96; // We should never end up here as binary bits are missing
 					}
 				}
@@ -229,8 +234,8 @@ static void parseCode(void) {
 			rDataTime=rDataTime+somfy_rts->raw[pRaw];
 			// Pulse changes at the pulse duration are neutral
 			if ((rDataTime > PULSE_SOMFY_LONG_L) && (rDataTime < PULSE_SOMFY_LONG_H)) {
-			rDataTime=0;
-			} else {
+				rDataTime=0;
+				} else {
 				if (rDataLow==1) {
 					binary[pBin]=0;
 				} else {
@@ -240,9 +245,10 @@ static void parseCode(void) {
 				if(pBin>pMaxbin)pMaxbin=pBin;
 				rDataTime = PULSE_SOMFY_SHORT;
 				if (pBin >= BINLEN_SOMFY_CLASSIC) {
+					logprintf(LOG_DEBUG, "somfy_rts: 2b-3: We got sufficient classic bits - goto stage 3");
 					protocol_sync = 3;	// We got all bits for classic data frame
 				}
-																				}
+			}
 			break;
 			case 3:
 			// Determine if we have a rising/falling edge in the middle
@@ -250,8 +256,10 @@ static void parseCode(void) {
 			if(    (somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L && somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H)
 				|| (somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L_1 && somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H_1) ) {
 				if (pBin==80) {
+					logprintf(LOG_DEBUG, "somfy_rts: 3a-4: 56 classic plus 24 Bit supplementary received");
 					protocol_sync=4;	// We received (56 classic) + (24 supplementary) frame bits
 				} else {
+					logprintf(LOG_DEBUG, "somfy_rts: 3b-97: We got %d binary bits (neither 56 nor 80) - distorted raw data ?");
 					protocol_sync=97;	// We have to check why we end up here
 				}
 				break;
@@ -259,7 +267,7 @@ static void parseCode(void) {
 			rDataTime= rDataTime+somfy_rts->raw[pRaw];
 			// Pulse changes at the pulse duration are neutral
 			if ( (rDataTime > PULSE_SOMFY_LONG_L) && (rDataTime < PULSE_SOMFY_LONG_H) ) {
-			rDataTime = 0;
+				rDataTime = 0;
 			} else {
 				if (rDataLow == 1) {
 					binary[pBin]=0;
@@ -275,27 +283,33 @@ static void parseCode(void) {
 			}
 			break;
 			case 4:
-			// We decoded the number of bis for classic data and new generation, check for footer pulse
+			logprintf(LOG_DEBUG, "somfy_rts: 4: 56 classic plus 56 Bit extended received");
+			// We decoded the number of bits for classic data and new generation, check for footer pulse
+			logprintf(LOG_DEBUG, "somfy_rts: 4: pulse: %d - pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
 			if (((somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L) && (somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H)) ||
 				 ((somfy_rts->raw[pRaw] > PULSE_SOMFY_FOOTER_L_1) && (somfy_rts->raw[pRaw] < PULSE_SOMFY_FOOTER_H_1)) ){
+				logprintf(LOG_DEBUG, "somfy_rts: 4: Done");
 				protocol_sync = 98;
 			} else {
+				logprintf(LOG_DEBUG, "somfy_rts: 4: prot 5: No extended frame support");
 				protocol_sync = 5;
 			// to be implemented: extended protocol support
-				logprintf(LOG_DEBUG, "somfy_rts: prot 5");
 			}
 //			break;
 			case 5:
 			// to be implemented: extended protocol support
 			case 95:
 			// Reserved: handle new Generation Frame decoding 24 Bit
-			logprintf(LOG_DEBUG, "somfy_rts: Extended frames not yet supported: %d pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
+			logprintf(LOG_DEBUG, "somfy_rts:95: pulse: %d - pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
 			protocol_sync = 99;
 			break;
 			case 96:
+			logprintf(LOG_DEBUG, "somfy_rts:96: pulse: %d - pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
 			case 97:
 			// We decoded a footer pulse without decoding the correct number of binary bits
+			logprintf(LOG_DEBUG, "somfy_rts:97: pulse: %d - pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
 			case 98:
+			logprintf(LOG_DEBUG, "somfy_rts:98: pulse: %d - pRaw: %d - bin: %d", somfy_rts->raw[pRaw], pRaw, pBin);
 			// We have reached the end of processing raw data
 			case 99:
 			default:
@@ -304,6 +318,13 @@ static void parseCode(void) {
 		pRaw++;
 		if (pRaw>pMaxraw)pMaxraw=pRaw; // Monitor maximum value
 		if (protocol_sync > 95) {
+			logprintf(LOG_DEBUG, "**** somfy_rts RAW CODE ****");
+			if(log_level_get() >= LOG_DEBUG) {
+				for(x=0;x<pRaw;x++) {
+					printf("%d ", somfy_rts->raw[x]);
+				}
+				printf(" -#: %d\n",pRaw);
+			}
 			break;
 		}
 	}
@@ -342,9 +363,24 @@ static void parseCode(void) {
 		tmp = tmp->next;
 		}
 
+		logprintf(LOG_DEBUG, "**** somfy_rts BIN CODE ****");
+		if(log_level_get() >= LOG_DEBUG) {
+			for(i=0;i<BIN_ARRAY_SOMFY_PROT;i++) {
+				printf("%d ", dec_frame[i]);
+			}
+			printf(" -addr: %d -cmd: %d -rk: %d -rc: %d -cksum: %d -kl: %d", address, command, rollingkey, rollingcode, cksum, key_left);
+			printf("\n");
+		}
+
 		if ( ( key_left == 10 && 0 == cksum)) {
 			createMessage(address, command, rollingcode, rollingkey, repeats);
+		} else {
+			if(log_level_get() >= LOG_DEBUG) {
+				logprintf(LOG_DEBUG, "somfy_rts parseCode Error: Header or Checksum Error");
+			}
 		}
+	} else {
+		logprintf(LOG_DEBUG, "somfy_rts parseCode Error");
 	}
 }
 
