@@ -159,7 +159,6 @@ static void parseCode(void) {
 		binary[i]=0;
 	}
 	while (pRaw<=MAXRAWLEN_OREGON_21_PROT) {
-	logprintf(LOG_DEBUG, "OREGON_21: State 1: Start decoding\n");
 		switch (protocol_sync) {
 			case 0:									// Wait for end of Pre-Amble pulses, or terminate if more than 36 Pre-Amble bits found
 				rDataTime = OREGON_21->raw[pRaw++];
