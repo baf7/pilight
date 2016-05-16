@@ -1700,9 +1700,9 @@ int flag_oregon_21 = 0;
 					}
 					logprintf(LOG_DEBUG, "DAEMON: Test duration of Call");
 					if(log_level_get() >= LOG_DEBUG) {
-						printf("\nrawlen %d plslen %d \n**** rawcode: ", r.pulses, plslen);
+						printf("\nrawlen %d \n**** rawcode: ", r.length);
 						for (i_loop=0;i_loop<=r.length;i_loop++) {
-							printf(" %d",rawcode[i_loop]);
+							printf(" %d",r.pulses[i_loop]);
 						}
 						printf("\n");
 					}
