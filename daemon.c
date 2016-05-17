@@ -1698,14 +1698,6 @@ int flag_oregon_21 = 0;
 					if(r.length >= hw->minrawlen && r.length <= hw->maxrawlen) {
 						receive_queue(r.pulses, r.length, plslen, hw->hwtype);
 					}
-					logprintf(LOG_DEBUG, "DAEMON: Test duration of Call");
-					if(log_level_get() >= LOG_DEBUG) {
-						printf("\nrawlen %d \n**** rawcode: ", r.length);
-						for (i_loop=0;i_loop<=r.length;i_loop++) {
-							printf(" %d",r.pulses[i_loop]);
-						}
-						printf("\n");
-					}
 					r.length = 0;
 					preamb_duration = 0;
 					preamb_pulse_counter = 0;
