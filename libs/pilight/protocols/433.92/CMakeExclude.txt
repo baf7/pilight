@@ -1,5 +1,10 @@
 include(../../../../CMakeConfig.txt)
 
+if(${PROTOCOL_GE_CHIP} MATCHES "OFF")
+    list(REMOVE_ITEM ${PROJECT_NAME}_sources "${PROJECT_SOURCE_DIR}/ge_chip.h")
+    list(REMOVE_ITEM ${PROJECT_NAME}_headers "${PROJECT_SOURCE_DIR}/ge_chip.c")
+endif()
+
 if(${PROTOCOL_ALECTO_WSD17} MATCHES "OFF")
 	list(REMOVE_ITEM ${PROJECT_NAME}_sources "${PROJECT_SOURCE_DIR}/alecto_wsd17.c")
 	list(REMOVE_ITEM ${PROJECT_NAME}_headers "${PROJECT_SOURCE_DIR}/alecto_wsd17.h")
@@ -244,4 +249,9 @@ endif()
 if(${PROTOCOL_SECUDO_SMOKE} MATCHES "OFF")
 	list(REMOVE_ITEM ${PROJECT_NAME}_sources "${PROJECT_SOURCE_DIR}/secudo_smoke.c")
 	list(REMOVE_ITEM ${PROJECT_NAME}_headers "${PROJECT_SOURCE_DIR}/secudo_smoke_h")
+endif()
+
+if(${PROTOCOL_UNITEC} MATCHES "OFF")
+	list(REMOVE_ITEM ${PROJECT_NAME}_sources "${PROJECT_SOURCE_DIR}/unitec.c")
+	list(REMOVE_ITEM ${PROJECT_NAME}_headers "${PROJECT_SOURCE_DIR}/unitec.h")
 endif()
