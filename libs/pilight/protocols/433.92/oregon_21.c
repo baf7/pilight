@@ -75,9 +75,9 @@ static void createMessage(	int device_id, int id, int unit, int battery, double 
 	if (temp > -274.0) json_append_member(OREGON_21->message, "temperature", json_mknumber(temp/100,2));
 	if (humidity > 0.0) json_append_member(OREGON_21->message, "humidity", json_mknumber(humidity,2));
 	if (uv != -1) json_append_member(OREGON_21->message, "uv", json_mknumber(uv,0));
-	if (wind_dir != -1) json_append_member(OREGON_21->message, "wind_dir", json_mknumber(wind_dir,0));
-	if (wind_speed != -1) json_append_member(OREGON_21->message, "wind_speed", json_mknumber(wind_speed,0));
-	if (wind_avg != -1) json_append_member(OREGON_21->message, "wind_avg", json_mknumber(wind_avg,0));
+	if (wind_dir != -1) json_append_member(OREGON_21->message, "winddir", json_mknumber(wind_dir,0));
+	if (wind_speed != -1) json_append_member(OREGON_21->message, "windgust", json_mknumber(wind_speed,0));
+	if (wind_avg != -1) json_append_member(OREGON_21->message, "windavg", json_mknumber(wind_avg,0));
 	if (rain != -1) json_append_member(OREGON_21->message, "rain", json_mknumber(rain,0));
 	if (rain_total != -1) json_append_member(OREGON_21->message, "rain_total", json_mknumber(rain_total,0));
 	if (pressure != -1) json_append_member(OREGON_21->message, "pressure", json_mknumber(pressure,0));
@@ -316,7 +316,13 @@ static void parseCode(void) {
 		id				=	(binToDec(binary, 16,19));			// Channel
 		unit			=	(binToDec(binary, 20,23) << 4);   // Unit
 		unit			+=	(binToDec(binary, 24,27));
-		battery		=	(binToDec(binary, 28,31) & 0x4);  // Battery Flag Clear if result 0
+		battery		=	(binToDec(binary, 28,31) & 0x4);  // Get the low Battery Flag
+		if (battery ==0) {
+			battery = 1;
+		} else {
+			battery = 0;
+		}
+
 		// Decode the payload of various V2.1 devices
 		switch (device_id) {
 			case 7456:						// 1D20, F824, F8B4
@@ -418,7 +424,7 @@ void oregon_21WeatherInit(void) {
 	protocol_register(&OREGON_21);
 	protocol_set_id(OREGON_21, "oregon_21");
 	protocol_device_add(OREGON_21, "oregon_21", "Oregon v2.1 protocol sensors");
-	OREGON_21->devtype = SENSOR;
+	OREGON_21->devtype = WEATHER;
 	OREGON_21->hwtype = RF433;
 	OREGON_21->minrawlen = MINRAWLEN_OREGON_21_PROT;
 	OREGON_21->maxrawlen = MAXRAWLEN_OREGON_21_PROT;
@@ -436,15 +442,21 @@ void oregon_21WeatherInit(void) {
 //	options_add(&OREGON_21->options, 't', "temperature", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 //	options_add(&OREGON_21->options, 'h', "humidity", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
 	options_add(&OREGON_21->options, 'v', "uv", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,2}$");
-	options_add(&OREGON_21->options, 'w', "wind_dir", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-	options_add(&OREGON_21->options, 'j', "wind_speed", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
-	options_add(&OREGON_21->options, 'k', "wind_avg", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+	options_add(&OREGON_21->options, 'w', "winddir", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+	options_add(&OREGON_21->options, 'j', "windgust", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
+	options_add(&OREGON_21->options, 'k', "windavg", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 	options_add(&OREGON_21->options, 'l', "rain", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,4}$");
 	options_add(&OREGON_21->options, 'm', "rain_total", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
 	options_add(&OREGON_21->options, 'n', "pressure", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 
-	options_add(&OREGON_21->options, 0, "decimals", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "[0-9]");
+	options_add(&OREGON_21->options, 0, "temperature-decimals", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)2, "[0-3]");
+	options_add(&OREGON_21->options, 0, "humidity-decimals", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "[0-3]");
 	options_add(&OREGON_21->options, 0, "readonly", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-rain", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-wind", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-pressure", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+
+	options_add(&OREGON_21->options, 0, "show-battery", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
 	options_add(&OREGON_21->options, 0, "show-humidity", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 	options_add(&OREGON_21->options, 0, "show-temperature", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
 
@@ -455,7 +467,7 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "oregon_21";
-	module->version =  "1.12";
+	module->version =  "1.13";
 	module->reqversion =  "7.0";
 	module->reqcommit =  NULL;
 }
