@@ -51,7 +51,8 @@
 // PREAMB + SYNC + (14 to 21 data nibbles + 2 to 5 nibbles post amble)*manchester_encoding
 // rawlenmin: 32+12+(14*8+2*8)*1= 172
 // rawlenmax: 32+12+(21*8+5*8)*2= 460
-#define BIN_ARRAY_CLASSIC	28		      // 28 - 16 is the Systemboundary
+#define BINLEN_OREGON_21_HEADER 9						// Sensor ID, Channel ID, Unit, Flag are at least 8 bit
+#define BIN_ARRAY_CLASSIC	28							// 28 - 16 is the Systemboundary
 #define BINLEN_OREGON_21_PROT	BIN_ARRAY_CLASSIC*8     // 128 is the systemboundary
 #define RAWLEN_OREGON_21_PROT	428		     // 255 is the systemboundary in the protocol_t structure
 
@@ -79,7 +80,7 @@ static void createMessage(	int device_id, int id, int unit, int battery, double 
 	if (wind_speed != -1) json_append_member(OREGON_21->message, "windgust", json_mknumber(wind_speed,0));
 	if (wind_avg != -1) json_append_member(OREGON_21->message, "windavg", json_mknumber(wind_avg,0));
 	if (rain != -1) json_append_member(OREGON_21->message, "rain", json_mknumber(rain,0));
-	if (rain_total != -1) json_append_member(OREGON_21->message, "rain_total", json_mknumber(rain_total,0));
+	if (rain_total != -1) json_append_member(OREGON_21->message, "raintotal", json_mknumber(rain_total,0));
 	if (pressure != -1) json_append_member(OREGON_21->message, "pressure", json_mknumber(pressure,0));
 }
 
@@ -252,7 +253,7 @@ static void parseCode(void) {
 							protocol_sync = 90;
 						}
 					}
-					if (pBin>BINLEN_OREGON_21_PROT) {
+					if (pBin < BINLEN_OREGON_21_HEADER || pBin>BINLEN_OREGON_21_PROT) {
 						protocol_sync = 89;
 					}
 				}
@@ -266,7 +267,10 @@ static void parseCode(void) {
 				}
 			break;
 			case 89:
-			// Tha max. of bits in binary data array was exceeded
+			// Tha min # of binary bits was not decoded, or the max. of bits in binary data array was exceeded
+			logprintf(LOG_DEBUG, "OREGON_21: State 89: Number of binary bits decoded invalid #: %d", pBin);
+			protocol_sync = 96;
+			break;
 			case 90:
 			// Inverted and regular Bit do not match. Error in payload
 			case 91:
@@ -446,7 +450,7 @@ void oregon_21WeatherInit(void) {
 	options_add(&OREGON_21->options, 'j', "windgust", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 	options_add(&OREGON_21->options, 'k', "windavg", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 	options_add(&OREGON_21->options, 'l', "rain", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,4}$");
-	options_add(&OREGON_21->options, 'm', "rain_total", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
+	options_add(&OREGON_21->options, 'm', "raintotal", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
 	options_add(&OREGON_21->options, 'n', "pressure", OPTION_OPT_VALUE, DEVICES_OPTIONAL, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 
 	options_add(&OREGON_21->options, 0, "temperature-decimals", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)2, "[0-3]");
@@ -455,10 +459,10 @@ void oregon_21WeatherInit(void) {
 	options_add(&OREGON_21->options, 0, "show-rain", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
 	options_add(&OREGON_21->options, 0, "show-wind", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
 	options_add(&OREGON_21->options, 0, "show-pressure", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-
-	options_add(&OREGON_21->options, 0, "show-battery", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
-	options_add(&OREGON_21->options, 0, "show-humidity", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
-	options_add(&OREGON_21->options, 0, "show-temperature", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-uv", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-battery", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)1, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-humidity", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
+	options_add(&OREGON_21->options, 0, "show-temperature", OPTION_OPT_VALUE, GUI_SETTING, JSON_NUMBER, (void *)0, "^[10]{1}$");
 
 	OREGON_21->validate=&validate;
 	OREGON_21->parseCode=&parseCode;
@@ -467,7 +471,7 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "oregon_21";
-	module->version =  "1.13";
+	module->version =  "1.14";
 	module->reqversion =  "7.0";
 	module->reqcommit =  NULL;
 }
