@@ -60,6 +60,7 @@
 #define MAXRAWLEN_OREGON_21_PROT	428     // all Data bit equal
 
 static int pChksum = 0, chksum = 0, pChkcrc = 0;
+static int chkcrc = 0;
 
 static int validate(void) {
 	if(OREGON_21->rawlen >= MINRAWLEN_OREGON_21_PROT && OREGON_21->rawlen <= MAXRAWLEN_OREGON_21_PROT) {
@@ -99,6 +100,7 @@ static void parseCode(void) {
 
 	int i, s_0, b_unknown, x;
 	int eBin= 0, pBin = 0, pRaw = 0;
+	int eRaw = 0;
 	int protocol_sync = 1;
 	int rDataLow = 0, rDataTime = 0;
 	int sign;
@@ -276,17 +278,20 @@ static void parseCode(void) {
 				}
 			break;
 			case 89:
-			// No end in decoding binary bits.
-			protocol_sync = 96;
+				// No end in decoding binary bits.
+				logprintf(LOG_DEBUG, "OREGON_21: State 89: Number of binary bits decoded invalid #: %d", pBin);
+				protocol_sync = 96;
 			break;
 			case 90:
 			// Invalid parity bit found
+				logprintf(LOG_DEBUG, "OREGON_21: State 90: Data Parity Error. Abort decoding");
 			case 91:
 			// Unknown Footer Length
 			// some devices send a spike before the footer, check if next pulse is footer
 				protocol_sync = 91;
 				if ( (OREGON_21->raw[pRaw+1] > PULSE_OREGON_21_FOOTER_L) && (OREGON_21->raw[pRaw+1] < PULSE_OREGON_21_FOOTER_H) ) {
 					rDataTime=OREGON_21->raw[pRaw++];
+					logprintf(LOG_DEBUG, "OREGON_21: State 91: Ignore spike: %d at pRaw: %d before footer with length: %d", rDataTime, pRaw, OREGON_21->raw[pRaw+1]);
 					protocol_sync = 98;
 				}
 			case 92:
@@ -297,11 +302,14 @@ static void parseCode(void) {
 			// Short pulse missing 2nd data bit
 			case 95:
 			// We did not find valid Pre-Amble data
+				logprintf(LOG_DEBUG, "OREGON_21: State %d: No further valid data found or missing pulse.", protocol_sync);
 			case 96:
+				logprintf(LOG_DEBUG, "OREGON_21: State 96: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
 				protocol_sync = 99;
 			break;
 			case 97:
 			// We decoded a footer pulse without decoding the correct number of binary bits
+				logprintf(LOG_DEBUG, "OREGON_21: State 97: Unexpected EOF.");
 			case 98:
 				logprintf(LOG_DEBUG, "OREGON_21: State 98: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
 			// We have reached the end of processing raw data
@@ -315,8 +323,6 @@ static void parseCode(void) {
 	}
 
 	if (protocol_sync > 97) {
-	// ad checksum check later on
-
 		device_id	=	(binToDec(binary,  0, 3) << 12);   // System ID
 		device_id	+=	(binToDec(binary,  4, 7) << 8);
 		device_id	+=	(binToDec(binary,  8,11) << 4);
@@ -450,7 +456,6 @@ static void parseCode(void) {
 				b_unknown = 0;
 			break;
 		}
-
 		if (b_unknown) {
 			// Compute checksum and do not broadcast incorrect data packets
 			if (pBin+7 > pChksum) {
@@ -461,22 +466,64 @@ static void parseCode(void) {
 					}
 					if ((chksum - binToDec(binary, pChksum, pChksum+7)) != 0) {
 						b_unknown = 0;	// Disable forwarding of packets with incorrect checksum
+						logprintf(LOG_DEBUG, "OREGON_21: Error in Chksum: %x - expected: %x", chksum, binToDec(binary, pChksum, pChksum+7));
 					}
 				}
 			} else {
 				// No checksum available
+				logprintf(LOG_DEBUG, "OREGON_21: No Checksum data available: pbin %d, pChksum: %d", pBin, pChksum+7);
 			}
 
 			if (pBin+7 > pChkcrc) {
 				// Add CRC code later on here
 			} else {
 				// No CRC available
+				logprintf(LOG_DEBUG, "OREGON_21: No CRC data available: pbin %d, pChkcrc: %d", pBin, pChkcrc+7);
 			}
+		}
+
+		if(log_level_get() >= LOG_DEBUG && pBin > 8) {
+			fprintf(stderr,"\n device: %d - id: %d - unit: %d - batt: %d - temp: %f - humi: %f - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
+			fprintf(stderr,"\n wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d\n", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
+			if (pChksum != 0) fprintf(stderr," Chksum: %d %x %x at %d ", pChksum, chksum, binToDec(binary,pChksum, pChksum+7), pBin);
+			if (pChkcrc != 0) fprintf(stderr," Chkcrc: %d %x %x at %d", pChkcrc, chkcrc, binToDec(binary,pChkcrc, pChkcrc+7), pBin);
+			fprintf(stderr,"\n");
 		}
 
 		if (b_unknown && eBin == pBin) {
 			createMessage(device_id, id, unit, battery, temp, humidity, uv, wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
+		} else {
+			if(log_level_get() >= LOG_DEBUG && pBin > 8) {
+				fprintf(stderr,"\nOREGON_21: DEBUG **** BIN Array pBin: %d Hexa ****",pBin);
+				fprintf(stderr,"\n --- 00 04 08 12 16 20 24 28 32 36 40 44 48 52 56 60 64 68 72 76 80 84 88 92 96 ");
+				i=25;
+				for(x=0;x<BINLEN_OREGON_21_PROT;x=x+4) {
+					if(i==25) {
+						fprintf(stderr,"\n %03i ",x);
+						i=0;
+					}
+					fprintf(stderr,"%2x ",(binToDec(binary,x,x+3)));
+					i++;
+				}
+				fprintf(stderr,"\n");
+			}
 
+			if(log_level_get() >= LOG_DEBUG && eBin != pBin && pBin > 8) {
+				fprintf(stderr,"\nOREGON_21: DEBUG **** RAW Array ****");
+				fprintf(stderr,"\n ---   00   01   02   03   04   05   06   07   08   09   10   11   12   13   14   15   16   17   18   19 ");
+				i=20;
+				eRaw=pRaw+1;
+				if (eRaw>=MAXRAWLEN_OREGON_21_PROT) eRaw=pRaw;
+				for(x=0;x<pRaw;x++) {
+					if(i==20) {
+						fprintf(stderr,"\n %03i ",x);
+						i=0;
+					}
+					fprintf(stderr,"%4i ",OREGON_21->raw[x]);
+					i++;
+				}
+				fprintf(stderr,"\n");
+			}
 		}
 	} else {
 	} // End if > 97
