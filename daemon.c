@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+
 #ifdef _WIN32
 	#include <winsock2.h>
 	#include <windows.h>
@@ -65,6 +66,7 @@
 #include "libs/pilight/core/proc.h"
 #include "libs/pilight/core/ntp.h"
 #include "libs/pilight/core/config.h"
+#include "libs/pilight/core/boundscheck.h"
 
 #ifdef EVENTS
 	#include "libs/pilight/events/events.h"
@@ -494,6 +496,8 @@ static void receive_queue(int *raw, int rawlen, int plslen, int hwtype) {
 				exit(EXIT_FAILURE);
 			}
 			for(i=0;i<rawlen;i++) {
+				boundscheck("rnode->raw", i, 0, sizeof(rnode->raw),"receive_queue");
+				boundscheck("raw", i, 0, sizeof(raw),"receive_queue");
 				rnode->raw[i] = raw[i];
 			}
 			rnode->rawlen = rawlen;
@@ -700,6 +704,7 @@ void *send_code(void *param) {
 					logprintf(LOG_DEBUG, "**** RAW CODE ****");
 					if(log_level_get() >= LOG_DEBUG) {
 						for(i=0;i<sendqueue->length;i++) {
+							boundscheck("sendqueue->code", i, 0, sizeof(sendqueue->code),"send_code 1");
 							printf("%d ", sendqueue->code[i]);
 						}
 						printf("\n");
@@ -712,6 +717,7 @@ void *send_code(void *param) {
 						logprintf(LOG_ERR, "failed to send code");
 					}
 					if(strcmp(protocol->id, "raw") == 0) {
+						boundscheck("sendqueue->code", sendqueue->length-1, 0, sizeof(sendqueue->code),"send_code 2");
 						int plslen = sendqueue->code[sendqueue->length-1]/PULSE_DIV;
 						receive_queue(sendqueue->code, sendqueue->length, plslen, -1);
 					}
@@ -730,6 +736,7 @@ void *send_code(void *param) {
 					}
 				}
 			} else {
+				boundscheck("sendqueue->code", sendqueue->length-1, 0, sizeof(sendqueue->code),"send_code 3");
 				if(strcmp(protocol->id, "raw") == 0) {
 					int plslen = sendqueue->code[sendqueue->length-1]/PULSE_DIV;
 					receive_queue(sendqueue->code, sendqueue->length, plslen, -1);
@@ -1482,6 +1489,7 @@ void *receivePulseTrain(void *param) {
 			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
 
 			hw->receivePulseTrain(&r);
+			boundscheck("receivePulseTrain", r.length-1, 0, sizeof(r.pulses),"receivePulseTrain");
 			plslen = r.pulses[r.length-1]/PULSE_DIV;
 			if(r.length > 0) {
 				receive_queue(r.pulses, r.length, plslen, hw->hwtype);
@@ -1529,6 +1537,7 @@ void *receiveOOK(void *param) {
 			logprintf(LOG_STACK, "%s::unlocked", __FUNCTION__);
 			duration = hw->receiveOOK();
 			if(duration > 0) {
+				boundscheck("receiveOOK", r.length, 0, sizeof(r.pulses),"receiveOOK 1");
 				r.pulses[r.length++] = duration;
 				if(r.length > MAXPULSESTREAMLENGTH-1) {
 					r.length = 0;
@@ -1704,6 +1713,7 @@ void *clientize(void *param) {
 			char **array = NULL;
 			unsigned int z = explode(recvBuff, "\n", &array), q = 0;
 			for(q=0;q<z;q++) {
+				boundscheck("array()", q, 0, sizeof(array),"clientize 1");
 				if(json_validate(array[q]) == true) {
 					json = json_decode(array[q]);
 					if(json_find_string(json, "action", &action) == 0) {
@@ -2248,6 +2258,7 @@ int start_pilight(int argc, char **argv) {
 	char **devs = NULL;
 	if((nrdevs = inetdevs(&devs)) > 0) {
 		for(x=0;x<nrdevs;x++) {
+			boundscheck("devs", x, 0, sizeof(devs),"start pilight");
 			if((p = genuuid(devs[x])) == NULL) {
 				logprintf(LOG_ERR, "could not generate the device uuid");
 			} else {
