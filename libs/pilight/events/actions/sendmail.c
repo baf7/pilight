@@ -175,6 +175,7 @@ static void *thread(void *param) {
 
 				if(sendmail(shost, suser, spassword, sport, &mail) != 0) {
 					logprintf(LOG_ERR, "Sendmail failed to send message \"%s\"", jval2->string_);
+					sleep(1);
 				}
 			}
 		}
