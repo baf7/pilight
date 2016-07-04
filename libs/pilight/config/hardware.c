@@ -97,7 +97,7 @@ void hardware_register(struct hardware_t **hw) {
 	(*hw)->mingaplen = 0;
 	(*hw)->maxgaplen = 0;
 
-	(*hw)->usr_parseHeader = 0;
+	(*hw)->usr_parseHeader = 1;	// daemon.c to support user protocols = 1, Standard = 0
 
 	(*hw)->init = NULL;
 	(*hw)->deinit = NULL;
