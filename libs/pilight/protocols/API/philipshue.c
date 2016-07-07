@@ -735,24 +735,24 @@ static void threadGC(void) {
 }
 
 static void printHelp(void) {
-	printf("\t -i --bridgeip=<ipaddress>\t\tPhilips Hue Bridge IP Address\n");
-	printf("\t -l --lightid=<lightid>\t\t\tlightid (1,2,3,..)\n");
-	printf("\t -u --username=<username>\t\tusername for bridge api\n");
-	printf("\t -o --on=<true|false>\t\t\tset light state on to true|false\n");
-	printf("\t -b --bri=<0..254>\t\t\tbrightness of a light from 0 to 254, this value is changed by dimlevel\n");
-	printf("\t -h --hue=<0..65535>\t\t\thue color value red=0 / yellow=12750 / green=25500 / blue=46920 / purple=56100 / red=65280\n");
-	printf("\t -s --sat=<0..255>\t\t\tsaturation from 0 to 255\n");
-	printf("\t -e --effect=<none|colorloop>\t\teffect none|colorloop (endless color looping mode until it is stopped by sending none)\n");
-	printf("\t -x --x=<0..0.9999>\t\t\tx value in xy color points\n");
-	printf("\t -y --y=<0..0.9999>\t\t\ty value in xy color points\n");
-	printf("\t -c --ct=<153..500>\t\t\tcolor temperature (warmest color is 500)\n");
-	printf("\t -a --alert=<none|select>\t\talert=select makes the light do a blink in its current color\n");
-	printf("\t -g --group=<0..>\t\t\trunning on group of lights. The group must have been created before (group 0 always includes all lights)\n");
-	printf("\t -z --scene=<scene-id>\t\t\tapply a predefined scene id (use option --resource=scenes to list all scenes on hue bridge)\n");
-	printf("\t -r --resource=<resource>\t\tlist resource lights|groups|config|schedules|scenes|sensors|rules\n");
-	printf("\t -t --on\t\t\t\tturn light or group on\n");
-	printf("\t -f --off\t\t\t\tturn light or group off\n");
-	printf("\t -n --newuser\t\t\t\tcreate and authorize user on Hue Bridge. Press link button on bridge and run pilight-send -p philipshue --bridgeip=<ip> --newuser again.\n");
+	printf("\t -i --bridgeip=<ipaddress>\tPhilips Hue Bridge IP Address\n");
+	printf("\t -l --lightid=<lightid>\t\tlightid (1,2,3,..)\n");
+	printf("\t -u --username=<username>\tusername for bridge api\n");
+	printf("\t -o --on=<true|false>\t\tset light state on to true|false\n");
+	printf("\t -b --bri=<0..254>\t\tbrightness of a light from 0 to 254, this value is changed by dimlevel\n");
+	printf("\t -h --hue=<0..65535>\t\thue color value red=0 / yellow=12750 / green=25500 / blue=46920 / purple=56100 / red=65280\n");
+	printf("\t -s --sat=<0..255>\t\tsaturation from 0 to 255\n");
+	printf("\t -e --effect=<none|colorloop>\teffect none|colorloop (endless color looping mode until it is stopped by sending none)\n");
+	printf("\t -x --x=<0..0.9999>\t\tx value in xy color points\n");
+	printf("\t -y --y=<0..0.9999>\t\ty value in xy color points\n");
+	printf("\t -c --ct=<153..500>\t\tcolor temperature (warmest color is 500)\n");
+	printf("\t -a --alert=<none|select>\talert=select makes the light do a blink in its current color\n");
+	printf("\t -g --group=<0..>\t\trunning on group of lights. The group must have been created before (group 0 always includes all lights)\n");
+	printf("\t -z --scene=<scene-id>\t\tapply a predefined scene id (use option --resource=scenes to list all scenes on hue bridge)\n");
+	printf("\t -r --resource=<resource>\tlist resource lights|groups|config|schedules|scenes|sensors|rules\n");
+	printf("\t -t --on\t\t\tturn light or group on\n");
+	printf("\t -f --off\t\t\tturn light or group off\n");
+	printf("\t -n --newuser\t\t\tcreate and authorize user on Hue Bridge. Press link button on bridge and run pilight-send -p philipshue --bridgeip=<ip> --newuser again.\n");
 }
 
 #if !defined(MODULE) && !defined(_WIN32)
@@ -782,7 +782,7 @@ void philipshueInit(void) {
 	 */
 	options_add(&philipshue->options, 'i', "bridgeip", OPTION_HAS_VALUE, DEVICES_ID, JSON_STRING, NULL, NULL);
 	options_add(&philipshue->options, 'l', "lightid",  OPTION_HAS_VALUE, DEVICES_ID, JSON_NUMBER, NULL, NULL);
-	options_add(&philipshue->options, 'u', "username", OPTION_HAS_VALUE, DEVICES_ID, JSON_STRING, NULL, "^[a-zA-Z0-9]+$");
+	options_add(&philipshue->options, 'u', "username", OPTION_HAS_VALUE, DEVICES_ID, JSON_STRING, NULL, NULL);
 	options_add(&philipshue->options, 'o', "on",    OPTION_HAS_VALUE, DEVICES_VALUE, JSON_STRING, NULL, NULL);
 	options_add(&philipshue->options, 'b', "bri", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,3}$");
 	options_add(&philipshue->options, 'h', "hue", OPTION_HAS_VALUE, DEVICES_VALUE, JSON_NUMBER, NULL, "^[0-9]{1,5}$");
