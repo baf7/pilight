@@ -201,6 +201,10 @@ void protocol_register(protocol_t **proto) {
 	(*proto)->threads = NULL;
 
 	(*proto)->repeats = 0;
+
+	(*proto)->preAmbCode = NULL;
+	(*proto)->postAmbCode = NULL;
+
 	(*proto)->first = 0;
 	(*proto)->second = 0;
 

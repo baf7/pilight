@@ -350,7 +350,7 @@ void *config_values_update(void *param) {
 						opt = protocol->options;
 						/* Loop through all protocol options */
 						while(opt) {
-							if(opt->conftype == DEVICES_VALUE &&
+							if( (opt->conftype == DEVICES_VALUE || opt->conftype == DEVICES_OPTIONAL) &&
 								opt->argtype == OPTION_HAS_VALUE) {
 								if(opt->vartype == JSON_STRING &&
 										(jtmp = json_find_member(jmessage, opt->name)) != NULL &&
@@ -2336,7 +2336,7 @@ int devices_select_settings(enum origin_t origin, char *id, int i, char **settin
 		while(devices_select_protocol(origin, id, x++, &protocol) == 0) {
 			struct options_t *options = protocol->options;
 			while(options) {
-				if(options->conftype == DEVICES_SETTING || options->conftype == DEVICES_VALUE) {
+				if(options->conftype == DEVICES_SETTING || (options->conftype == DEVICES_VALUE || options->conftype == DEVICES_OPTIONAL)) {
 					if((tmp1 = json_find_member(tmp, options->name)) != NULL) {
 						if(y == i) {
 							*setting = options->name;

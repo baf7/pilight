@@ -373,12 +373,16 @@ void *send_code(void *param) {
 	struct JsonNode *jrespond = NULL;
 	struct JsonNode *jchilds = NULL;
 	struct hardware_t *hardware = NULL;
+	struct protocol_t *protocol = NULL;
+	int *pamble = NULL, plen = 0;
+
 	if(hardware_select(ORIGIN_MASTER, NULL, &jrespond) == 0) {
 		jchilds = json_first_child(jrespond);
 		while(jchilds) {
 			if(hardware_select_struct(ORIGIN_MASTER, jchilds->key, &hardware) == 0) {
 				if(hardware->hwtype == data->hwtype) {
 					hw = hardware;
+//					logprintf (LOG_DEBUG, "*+ *+ *+ * * * * * * * * * preamb %p\n", protocol->preAmbCode);
 					break;
 				}
 			}
@@ -397,12 +401,35 @@ void *send_code(void *param) {
 				}
 				printf("\n");
 			}
+
+//			if(protocol->preAmbCode != NULL) {
+//				plen = protocol->preAmbCode(&pamble);
+//
+//			if(data->preAmbCode != NULL) {
+//				plen = data->preAmbCode(&pamble);
+//				if(hw->sendOOK(pamble, plen, 1) == 0) {
+//					logprintf(LOG_DEBUG, "successfully send %s preAmb sequence", data->protocol);
+//				} else {
+//					logprintf(LOG_ERR, "failed to send %s preAmb sequence", data->protocol);
+//				}
+//			}
 			logprintf(LOG_DEBUG, "**** RAW CODE ****");
 			if(hw->sendOOK(data->pulses, data->rawlen, data->txrpt) == 0) {
 				logprintf(LOG_DEBUG, "successfully send %s code", data->protocol);
 			} else {
 				logprintf(LOG_ERR, "failed to send code");
 			}
+//			if(protocol->postAmbCode != NULL) {
+//				plen = protocol->postAmbCode(&pamble);
+//			if(data->postAmbCode != NULL) {
+//				plen = data->postAmbCode(&pamble);
+//				if(hw->sendOOK(pamble, plen, 1) == 0) {
+//					logprintf(LOG_DEBUG, "successfully send %s postAmb sequence.", data->protocol);
+//				} else {
+//					logprintf(LOG_ERR, "failed to send %s postAmb sequence", data->protocol);
+//				}
+//			}
+
 			if(strcmp(data->protocol, "raw") == 0) {
 				int plslen = data->pulses[data->rawlen-1]/PULSE_DIV;
 				receive_parse_code(data->pulses, data->rawlen, plslen, -1);
