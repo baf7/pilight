@@ -344,18 +344,13 @@ starttls:
 		if(strncmp(recvBuff, "235", 3) == 0) {
 			break;
 		}
-		if(strncmp(recvBuff, "451", 3) == 0) {
-			logprintf(LOG_NOTICE, "SMTP: protocol violation while authenticating");
+		if(strncmp(recvBuff, "451", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: Err 4xy protocol violation - aborting");
 			error = -1;
 			goto close;
 		}
-		if(strncmp(recvBuff, "501", 3) == 0) {
-			logprintf(LOG_NOTICE, "SMTP: cannot decode response");
-			error = -1;
-			goto close;
-		}
-		if(strncmp(recvBuff, "535", 3) == 0) {
-			logprintf(LOG_NOTICE, "SMTP: authentication failed: wrong user/password");
+		if(strncmp(recvBuff, "501", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: Err 5xy protocol violation - aborting");
 			error = -1;
 			goto close;
 		}
