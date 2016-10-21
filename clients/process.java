@@ -127,13 +127,23 @@ public class process {
 					bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"), size);
 				}
 				int c = 0;
-				StringBuilder response = new StringBuilder();
-				if(bufferedReader.ready()) {
-					while((c = bufferedReader.read()) > 0) {
-						response.append((char)c);
-					}
-					System.out.println(response.toString());
+//
+// https://forum.pilight.org/Thread-Java-client?pid=17783#pid17783
+//
+//				StringBuilder response = new StringBuilder();
+//				if(bufferedReader.ready()) {
+//					while((c = bufferedReader.read()) > 0) {
+//						response.append((char)c);
+//					}
+//					System.out.println(response.toString());
+//				}
+				String r;
+				while ((r = bufferedReader.readLine()) != null) {
+					System.out.println(r);
 				}
+//
+//
+//
 			} catch(IOException e) {
 				System.out.println("failed to receive messages from server");
 			}

@@ -66,7 +66,7 @@ static void parseCode(void) {
 	double humidity = 0.0, temperature = 0.0;
 	int winddir = 0, windavg = 0, windgust = 0;
 	int /*rain = 0, */battery = 0;
-	int n0 = 0, n1 = 0, n2 = 0, n3 = 0;
+	int n0 = 0, n1 = 0, n2 = 0, n3 = 0, n3b = 0;
 	int n4 = 0, n5 = 0, n6 = 0, n7 = 0, n8 = 0;
 	int checksum = 1;
 
@@ -88,10 +88,13 @@ static void parseCode(void) {
 	n6=binToDec(binary, 24, 27);
 	n5=binToDec(binary, 20, 23);
 	n4=binToDec(binary, 16, 19);
+	n3b=binToDecRev(binary, 12, 18);
 	n3=binToDec(binary, 12, 15);
 	n2=binToDec(binary, 8, 11);
 	n1=binToDec(binary, 4, 7);
 	n0=binToDec(binary, 0, 3);
+
+	id = n3b;	// https://forum.pilight.org/Thread-TFA-30-3125-Temp-Hum-TFA-31-3120-90-Temp?pid=16853#pid16853
 
 	struct settings_t *tmp = settings;
 	while(tmp) {

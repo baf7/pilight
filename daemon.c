@@ -245,7 +245,7 @@ int preamb_pulse_counter = 0;
 int preamb_duration = 0;
 int preamb_state = 0;
 int p_header_21 = 0;
-
+int i_mingaplen = 32767, i_maxgaplen = 0, i_minrawlen = 1024, i_maxrawlen = 0;
 // End definitions for usr_parseHeader
 
 static void client_remove(int id) {
@@ -2698,6 +2698,11 @@ int start_pilight(int argc, char **argv) {
 				struct protocols_t *tmp = protocols;
 				while(tmp) {
 					if(tmp->listener->hwtype == tmp_confhw->hardware->hwtype) {
+						if (tmp->listener->maxrawlen > i_maxrawlen) i_maxrawlen = tmp->listener->maxrawlen;
+						if (tmp->listener->minrawlen > 0 && tmp->listener->minrawlen < i_minrawlen) i_minrawlen = tmp->listener->minrawlen;
+						if (tmp->listener->maxgaplen > i_maxgaplen) i_maxgaplen = tmp->listener->maxgaplen;
+						if (tmp->listener->mingaplen > 0 && tmp->listener->mingaplen < i_mingaplen) i_mingaplen = tmp->listener->mingaplen;
+
 						if(tmp->listener->maxrawlen > tmp_confhw->hardware->maxrawlen) {
 							tmp_confhw->hardware->maxrawlen = tmp->listener->maxrawlen;
 						}
@@ -2721,6 +2726,7 @@ int start_pilight(int argc, char **argv) {
 		}
 		tmp_confhw = tmp_confhw->next;
 	}
+	logprintf(LOG_INFO, "System boundaries - mingaplen: %d maxgaplen: %d minrawlen: %d maxrawlen: %d",i_mingaplen, i_maxgaplen, i_minrawlen, i_maxrawlen);
 
 	settings_find_number("port", &port);
 	settings_find_number("standalone", &standalone);

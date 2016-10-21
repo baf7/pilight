@@ -89,7 +89,7 @@ static unsigned short threads = 0;
  * page   = the request (for example "/api/lights" )
  * method = HTTP_GET|HTTP_POST|HTTP_PUT|HTTP_DELETE
  * type   = should always return "application/json" otherwise something went wrong
- * code   = return code (should alway have 200)
+ * code   = return code (should always be 200)
  * size   = returned content size
  * post   = post data used in POST and PUT requests
  *
@@ -166,7 +166,7 @@ char *hue_request(char *host, char *page, int method, char **type, int *code, in
 	} else if(method == HTTP_PUT) {
 		len = (size_t)snprintf(&header[0], bufsize, "PUT %s HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s", page,(int)strlen(post), post);
 		if(len >= bufsize) {
-			bufsize += BUFFER_SIZE;
+ 			bufsize += BUFFER_SIZE;
 			if((header = REALLOC(header, bufsize)) == NULL) {
 				fprintf(stderr, "out of memory\n");
 				exit(EXIT_FAILURE);
@@ -317,16 +317,17 @@ static void *philipshueParse(void *param) {
 		jchild = json_first_child(jid);
 		json_find_string(jchild, "bridgeip", &bridgeip);
 		json_find_string(jchild, "username", &username);
-		while(jchild) {
-			jchild1 = json_first_child(jchild);
-			while(jchild1) {
-				if(strcmp(jchild1->key, "lightid") == 0 && jchild1->tag == JSON_NUMBER) {
-					wnode->lightid = (int)jchild1->number_;
-				}
-				jchild1 = jchild1->next;
-			}
-			jchild = jchild->next;
-		}
+//		while(jchild) {
+//			jchild1 = json_first_child(jchild);
+//			while(jchild1) {
+//				if(strcmp(jchild1->key, "lightid") == 0 && jchild1->tag == JSON_NUMBER) {
+//					wnode->lightid = (int)jchild1->number_;
+//					wnode->lightid = 1;
+//				}
+//				jchild1 = jchild1->next;
+//			}
+//			jchild = jchild->next;
+//		}
 	}
 
 	if(bridgeip != NULL) {
@@ -367,8 +368,12 @@ static void *philipshueParse(void *param) {
 
 		timeout += INTERVAL;
 
-		if(wnode->lightid == 1 ) {  // only running one loop/thread for lightid 1 to poll status for all lights from hue bridge every 60 seconds
+//		if(wnode->lightid == 1 ) {  // only running one loop/thread for lightid 1 to poll status for all lights from hue bridge every 60 seconds
+// logprintf(LOG_NOTICE, "** lightid %d \n", wnode->lightid);
+
 			if(timeout >= interval || event != ETIMEDOUT || firstrun == 1) {
+logprintf(LOG_NOTICE, "** lightid %d \n", wnode->lightid);
+
 				timeout = 0;
 				data = NULL;
 				sprintf(url, "/api/%s/lights", username);
@@ -380,10 +385,10 @@ static void *philipshueParse(void *param) {
 								if(jdata->tag == JSON_OBJECT) {
 									json_foreach(jmain, jdata) {  // loop through lights { "1":{...}, "2":{...}, "3":{...},...}
 									/*
-									 * Example jdata:
+									 * Example jdata lights:
 									 *
 									 *	{"1": {
-									 *		 "state": {
+									 *		"state": {
 									 *			"on": false,
 									 *			"bri": 253,
 									 *			"hue": 8625,
@@ -394,14 +399,35 @@ static void *philipshueParse(void *param) {
 									 *			"alert": "none",
 									 *			"colormode": "xy",
 									 *			"reachable": true
-									 *		  },
-									 *		  "type": "Extended color light",
-									 *		  "name": "Hue Lamp",
-									 *		  ...
-									 *		  },
-									 *	 "2": {...},
-									 *	 ...
+									 *		},
+									 *		"type": "Extended color light",
+									 *		"name": "Hue Lamp",
+									 *		...
+									 *		},
+									 *	"2": {...},
+									 *	...
 									 *	}
+									 *
+									 * Dimmer Switch
+									 *
+									 *	"5": {
+									 *		"state": {
+									 *			"buttonevent": 4002,
+									 *			"lastupdated": "2016-09-23T18:20:11"
+									 *		},
+									 *		"config": {
+									 *			"on": true,
+									 *			"battery": 100,
+									 *			"reachable": true
+									 *		},
+									 *		"name": "Hue dimmer switch 1",
+									 *		"type": "ZLLSwitch",
+									 *		"modelid": "RWL021",
+									 *		"manufacturername": "Philips",
+									 *		"swversion": "5.45.1.15767",
+									 *		"uniqueid": "xxxxxxxxxxx"
+									 *	}
+									 *
 									 *
 									 */
 
@@ -512,10 +538,10 @@ static void *philipshueParse(void *param) {
 				}
 			}
 			firstrun = 0;
-		} else {
-			logprintf(LOG_NOTICE, "philipshue - lightid = %d, only running one thread for lightid 1 to get status from Philips Hue Bridge.", wnode->lightid);
-			break;
-		}
+//		} else {
+//			logprintf(LOG_NOTICE, "philipshue - lightid = %d, only running one thread for lightid 1 to get status from Philips Hue Bridge.", wnode->lightid);
+//			break;
+//		}
 
 		pthread_mutex_unlock(&lock);
 	}
@@ -585,7 +611,7 @@ static int createCode(JsonNode *code) {
 
 		if(strstr(progname, "daemon") != NULL && json_find_string(code, "resource", &resource) != 0) {
 				logprintf(LOG_DEBUG, "philipshue - Running on Philips Hue Bridge IP = %s", bridgeip);
-
+ 
 				JsonNode *postcode = json_mkobject();
 				if((node = json_find_member(code, "on")) != NULL && node->tag == JSON_STRING) { // if on == "true" then bool true else bool false
 					json_append_member(postcode,  "on", json_mkbool((strcmp(node->string_, "true") == 0 )? 1 : 0));

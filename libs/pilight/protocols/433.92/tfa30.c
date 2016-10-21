@@ -262,7 +262,7 @@ void tfa30Init(void) {
 #ifdef MODULAR
 void compatibility(const char **version, const char **commit) {
 	module->name = "tfa30";
-	module->version = "1.1";
+	module->version = "1.11";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }
