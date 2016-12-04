@@ -75,7 +75,7 @@ static int createCode(JsonNode *code) {
 	int id = -1;
 	int state = -1;
 	int dimlevel = -1;
-	int max = 10;
+	int max = 15;
 	int min = 0;
 	double itmp = -1;
 

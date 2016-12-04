@@ -582,6 +582,7 @@ function createDimmerElement(sTabId, sDevId, aValues) {
 		oTab.listview();
 		oTab.listview("refresh");
 	}
+
 	$('#'+sDevId+'_dimmer').slider('refresh');
 	if('readonly' in aValues && aValues['readonly']) {
 		aReadOnly[sDevId] = 1;
@@ -975,6 +976,7 @@ function parseValues(data) {
 					}
 					if(vindex == 'dimlevel') {
 						aDimLevel[dvalues] = vvalues;
+						$('#'+dvalues+'_value').val(vvalues);
 						$('#'+dvalues+'_dimmer').val(vvalues);
 						$('#'+dvalues+'_dimmer').slider('refresh');
 					}
