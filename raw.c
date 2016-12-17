@@ -102,7 +102,7 @@ void *receiveOOK(void *param) {
 	while(main_loop && hw->receiveOOK) {
 		duration = hw->receiveOOK();
 		duration_sum = duration_sum + duration;
-		iLoop++;
+//		iLoop++;
 
 		if(duration > 0) {
 			iLoop++;
