@@ -99,7 +99,7 @@ static void parseCode(void) {
 
 	int i, s_0, b_unknown, x;
 	int eBin= -1, pBin = 0, pRaw = 0;
-	int protocol_sync = 1;
+	int protocol_sync = 1, prot_footer = 0;
 	int rDataLow = 0, rDataTime = 0;
 	int sign;
 	int device_id = -1;
@@ -117,7 +117,15 @@ static void parseCode(void) {
 	int pressure = -1;
 // Oregon V2.1
 // The last preamble bit is ON, e.q. the first SYNC nibble
-// is send as RF: OFF,ON,OFF
+// is send as RF: OFF,ON,OFF ON,OFF,ON OFF,ON,OFF ON,OFF,ON
+//
+// --------------------------------------------------------------
+//
+// Oregon V3.0
+// The last preamble bit is ON, e.q. there are 4 LONG RF pulses
+// is send as RF: OFF,ON,OFF,ON
+//
+// --------------------------------------------------------------
 //
 // The duration of pulses depends on the state of RF
 // a,b
@@ -145,7 +153,8 @@ static void parseCode(void) {
 #define PULSE_OREGON_21_LONG	976     					// OREGON_21 Docu long pulse duration
 #define PULSE_OREGON_21_LONG_L	PULSE_OREGON_21_LONG-288	// 688 min
 #define PULSE_OREGON_21_LONG_H	PULSE_OREGON_21_LONG+432	// 1408 max
-#define PULSE_OREGON_21_FOOTER	324							// GAP 11018/34
+#define PULSE_OREGON_21_FOOTER	324							// GAP 11016/34
+#define PULSE_OREGON_30_FOOTER	325							// GAP 11050/34
 #define PULSE_OREGON_21_FOOTER_L	(PULSE_OREGON_21_FOOTER-25)*PULSE_DIV
 #define PULSE_OREGON_21_FOOTER_H	(PULSE_OREGON_21_FOOTER+25)*PULSE_DIV+PULSE_OREGON_21_SHORT_H
 // Bin / Rawlength definitions
@@ -155,6 +164,9 @@ static void parseCode(void) {
 	s_0 = 0;
 	b_unknown = 1;	// Assume protocol is valid and known
 	rf_state = 1;
+
+	prot_footer = !((OREGON_21->raw[OREGON_21->rawlen-1] / 34) - PULSE_OREGON_21_FOOTER); // true
+
 	for  (i=0;i<BINLEN_OREGON_21_PROT;i++) {
 		binary[i]=0;
 	}
@@ -178,7 +190,7 @@ static void parseCode(void) {
 				rDataTime = OREGON_21->raw[pRaw++];
 				rf_state ^= 1;
 				if( (rDataTime >= dur_long[rf_state][0]) && (rDataTime <= dur_long[rf_state][1]) ) {
-					s_0++;							// The 4th SYNC pulse is a logical "1"
+					s_0++;							// The 4th long SYNC pulse is a logical "1"
 					if (s_0 > 3) {					// rDataLow 1-"0", -1-"1"
 						protocol_sync = 2;
 						rDataLow = -1;
@@ -225,7 +237,7 @@ static void parseCode(void) {
 					binary[pBin]=1;
 				}
 
-				if (protocol_sync == 2) {	       // Continue only if no footer or error condition set
+				if (protocol_sync == 2 && prot_footer) {	       // Continue only if no footer or error condition set
 					// Get the 2nd bit and check if it is inverted
 					rDataTime= OREGON_21->raw[pRaw++];
 					rf_state ^= 1;
@@ -290,11 +302,11 @@ static void parseCode(void) {
 					protocol_sync = 98;
 				}
 			case 92:
-			// Long pulse missing 2nd inverted data bit
+			// Long pulse missing 2nd inverted data bit (V2.1 only)
 			case 93:
 			// Short pulse missing 1st inverted data bit
 			case 94:
-			// Short pulse missing 2nd data bit
+			// Short pulse missing 2nd data bit(V2.1 only)
 			case 95:
 			// We did not find valid Pre-Amble data
 			case 96:
@@ -303,7 +315,7 @@ static void parseCode(void) {
 			case 97:
 			// We decoded a footer pulse without decoding the correct number of binary bits
 			case 98:
-				logprintf(LOG_DEBUG, "OREGON_21: State 98: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
+				logprintf(LOG_DEBUG, "OREGON: State 98: End of data with last pulse: %d - #of pRaw: %d - #of bin: %d", rDataTime, pRaw, pBin);
 			// We have reached the end of processing raw data
 			case 99:
 			default:
@@ -446,7 +458,7 @@ static void parseCode(void) {
 
 			default:
 				// Do not create a receive message for unknown protocol ID's, but list them in debug mode 
-				logprintf(LOG_DEBUG, "OREGON_21: Unknown device_id: %d", device_id);
+				logprintf(LOG_DEBUG, "OREGON: Unknown device_id: %d", device_id);
 				b_unknown = 0;
 			break;
 		}
@@ -474,7 +486,7 @@ static void parseCode(void) {
 		}
 		// Skip Debug Messages for binary arrays with too little valuable information
 		if (pBin > 1) {
-			logprintf(LOG_DEBUG, "OREGON_21: Decoded binary data. Last bit at pBin: %d ",pBin);
+			logprintf(LOG_DEBUG, "OREGON: Decoded binary data. Last bit at pBin: %d ",pBin);
 			if(log_level_get() >= LOG_DEBUG) {
 				fprintf(stderr," --- 00 04 08 12 16 20 24 28 32 36 40 44 48 52 56 60 64 68 72 76 80 84 88 92 96 ");
 				i=25;
@@ -488,8 +500,8 @@ static void parseCode(void) {
 				}
 				fprintf(stderr,"\n");
 			}
-			logprintf(LOG_DEBUG, "OREGON_21: device: %d - id: %d - unit: %d - batt: %d - temp: %f - humi: %f - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
-			logprintf(LOG_DEBUG, "OREGON_21: wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
+			logprintf(LOG_DEBUG, "OREGON: device: %d - id: %d - unit: %d - batt: %d - temp: %f - humi: %f - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
+			logprintf(LOG_DEBUG, "OREGON: wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
 			if (pChksum != 0) logprintf(LOG_DEBUG, "OREGON_21: pChksum at: %d, calc: %x, expected: %x, bin end at: %d, crc: %x", pChksum, chksum, binToDec(binary,pChksum, pChksum+7), pBin, binToDec(binary,pChksum+8, pChksum+15));
 		}
 	} else {
@@ -504,6 +516,7 @@ void oregon_21WeatherInit(void) {
 	protocol_register(&OREGON_21);
 	protocol_set_id(OREGON_21, "oregon_21");
 	protocol_device_add(OREGON_21, "oregon_21", "Oregon v2.1 protocol sensors");
+	protocol_device_add(OREGON_21, "oregon_30", "Oregon v3.0 protocol sensors");
 	OREGON_21->devtype = WEATHER;
 	OREGON_21->hwtype = RF433;
 	OREGON_21->minrawlen = MINRAWLEN_OREGON_21_PROT;
@@ -544,7 +557,7 @@ void oregon_21WeatherInit(void) {
 #ifdef MODULE
 void compatibility(struct module_t *module) {
 	module->name =  "oregon_21";
-	module->version =  "1.25";
+	module->version =  "1.30";
 	module->reqversion =  "7.0";
 	module->reqcommit =  NULL;
 }

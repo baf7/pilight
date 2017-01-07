@@ -15,7 +15,9 @@
 	You should have received a copy of the GNU General Public License
 	along with pilight. If not, see	<http://www.gnu.org/licenses/>
 */
-
+/*
+	170101 - Support for S*mfy and Oregon V2.1 V3.0
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -226,25 +228,31 @@ static int webserver_root_free = 0;
 #define WAIT_FOR_END_OF_DATA    1
 #define WAIT_FOR_END_OF_DATA_2  4
 #define WAIT_FOR_END_OF_DATA_3  5
+#define WAIT_FOR_END_OF_HEADER_V30  30
+#define WAIT_FOR_END_OF_DATA_V30    31
+#define WAIT_FOR_END_OF_DATA_2_V30  34
+#define WAIT_FOR_END_OF_DATA_3_V30  35
 #define PREAMB_SYNC_L	488	// V2.1 - clk = 1024 Hz
 #define PREAMB_SYNC_L_MAX	586	// PREAMB_SYNC_L * 1,2
 #define PREAMB_SYNC_MIN	732
 #define PREAMB_SYNC_H	976	// V2.1 - clk = 1024 Hz
 #define PREAMB_SYNC_MAX	1120	// A single value above this value is added to the next value
 #define PREAMB_SYNC_DMAX	PREAMB_SYNC_H+PREAMB_SYNC_L
-#define O21_FOOTER	11018	// GAP pulse Oregon V2.1
-#define PRE_AMB_HEADER_CNT_MAX	33	// Max # of preamb pulses
-#define PRE_AMB_HEADER_CNT	22
+#define O21_FOOTER	11016	// GAP pulse Oregon V2.1
+#define PRE_AMB_HEADER_CNT_V21	22
+#define PRE_AMB_HEADER_CNT_V30	42
 #define L_HEADER_21	12
+#define L_HEADER_30	4
 
 int header_21[L_HEADER_21] = {PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H,PREAMB_SYNC_L,PREAMB_SYNC_L,PREAMB_SYNC_H};
+int header_30[L_HEADER_30] = {PREAMB_SYNC_H,PREAMB_SYNC_H,PREAMB_SYNC_H,PREAMB_SYNC_H};
 int duration_next = 0;
-int flag_oregon_21 = 0;
+int flag_oregon_21 = 0, flag_oregon_30 = 0;
 int latch_duration = 0;
-int preamb_pulse_counter = 0;
-int preamb_duration = 0;
+int preamb_pulse_counter = 0, preamb_pulse_counter_V30 = 0;
+int preamb_duration = 0, preamb_duration_V30 = 0;
 int preamb_state = 0;
-int p_header_21 = 0;
+int p_header_21 = 0, p_header_30=0;
 int i_mingaplen = 32767, i_maxgaplen = 0, i_minrawlen = 1024, i_maxrawlen = 0;
 // End definitions for usr_parseHeader
 
@@ -1570,8 +1578,10 @@ int usr_parseHeader(struct hardware_t *hw, struct rawcode_t *r, struct timeval *
 // oregon21: length 32: maximum length of valid pre-amb pulses is 32 (32 clock duration pulses)
 //	   SYNC is coded as 10101010 and handled by the protocol itself (possible intergap value is 11018, 31232)
 // Planned to be added pre-amb support for
-// oregon30: length 24: maximum valid length
-//	   SYNC is coded as 0101 and handled ny the protocol itself (possible intergap value 23424)
+// oregon30: length 24: maximum valid length of 48 short pulses
+//     The driver checks for a minimum of 42 short clock durations followed by 4 long clock durations (SYNC)
+//	   SYNC is coded as 0101 and handled by the protocol itself (possible intergap value 23424)
+//     The last SYNC pulse represents a logical 1 state
 // Maybe:
 // oregon10: length 12: maximum length
 //	   SYNC is coded as three pulses and handled by the protocol itself (footer 35088)
@@ -1601,7 +1611,8 @@ int plslen = 0;
 
 	if(*duration > 0) {
 		r->pulses[r->length] = *duration;
-
+		// At the beginning we do check for both V2.1 SYNC as well as V3.0 SYNC
+		// We do need to check V2.1 first
 		switch (preamb_state) {
 
 			case WAIT_FOR_END_OF_HEADER:
@@ -1612,7 +1623,7 @@ int plslen = 0;
 			} else {
 				// Check if we found the deviating pulse after a series of consecutive pulses
 				// and that the deviating pulse qualifies as a SYNC pulse
-				if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
+				if (preamb_pulse_counter > PRE_AMB_HEADER_CNT_V21) {
 					flag_oregon_21 = 1;	// flag for footer based protocols: 2nd transmission
 					preamb_state = WAIT_FOR_END_OF_DATA;
 					preamb_pulse_counter = 0;
@@ -1639,7 +1650,7 @@ int plslen = 0;
 				preamb_duration += r->pulses[r->length];
 			} else {
 				// Check if we found the deviating pulse after a series of consecutive pulses
-				if (preamb_pulse_counter > PRE_AMB_HEADER_CNT) {
+				if (preamb_pulse_counter > PRE_AMB_HEADER_CNT_V21) {
 					latch_duration = *duration;	// Remember this pulse for WFD2
 					r->pulses[r->length] = O21_FOOTER;	// Emulate Footer
 					*duration = O21_FOOTER;
@@ -1699,6 +1710,7 @@ int plslen = 0;
 			case WAIT_FOR_END_OF_DATA_3:
 			if (*duration > 5100) {
 				preamb_state = WAIT_FOR_END_OF_HEADER;
+				flag_oregon_21 = 0;
 				*duration = O21_FOOTER;	// Replace GAP with defined footer value
 				r->pulses[r->length]   = *duration;
 			}
@@ -1706,13 +1718,123 @@ int plslen = 0;
 
 			default:
 			break;
-		} // Switch preamb_state
+		} // Switch preamb_state_V21
+
+
+		switch (preamb_state) {
+
+			case WAIT_FOR_END_OF_HEADER:
+			flag_oregon_30 = 0;
+			if (*duration < PREAMB_SYNC_L_MAX) {	// Check for pulses with half clock duration
+				preamb_pulse_counter_V30++;
+				preamb_duration_V30 += r->pulses[r->length];
+			} else {
+				// Check if we found the deviating pulse after a series of consecutive pulses
+				// and that the deviating pulse qualifies as a SYNC pulse
+				if (preamb_pulse_counter_V30 > PRE_AMB_HEADER_CNT_V30) {
+					flag_oregon_30 = 1;	// flag for footer based protocols: 2nd transmission
+					preamb_state = WAIT_FOR_END_OF_DATA_V30;
+					preamb_pulse_counter_V30 = 0;
+					r->length = 0;	// Reset Pointer
+					r->pulses[r->length] = *duration;	// Restore the 1st SYNC pulse
+				} else {
+					// Below threshold, so we have to reset and will continue to check
+					preamb_duration_V30 = 0;
+					preamb_pulse_counter_V30 = 0;
+				}
+			}
+			break;
+
+			case WAIT_FOR_END_OF_DATA_V30:
+			if (*duration > 5100) {	// Regular GAP detected search for Header
+				if (flag_oregon_30 == 1) {	// 2nd footer is also oregon_21
+					*duration = O21_FOOTER+34;
+					r->pulses[r->length]   = *duration;
+				}
+				preamb_state = WAIT_FOR_END_OF_HEADER_V30;
+			}
+			if (*duration < PREAMB_SYNC_L_MAX) {
+				preamb_pulse_counter_V30++;
+				preamb_duration_V30 += r->pulses[r->length];
+			} else {
+				// Check if we found the deviating pulse after a series of consecutive pulses
+				if (preamb_pulse_counter_V30 > PRE_AMB_HEADER_CNT_V30) {
+					latch_duration = *duration;	// Remember this pulse for WFD2
+					r->pulses[r->length] = O21_FOOTER+34;	// Emulate Footer
+					*duration = O21_FOOTER+34;
+					preamb_state = WAIT_FOR_END_OF_DATA_2_V30;
+				} else {
+				// Below threshold, so we continue to wait
+					preamb_duration_V30 = 0;
+					preamb_pulse_counter_V30 = 0;
+				}
+			}
+			break;
+
+			case WAIT_FOR_END_OF_DATA_2_V30:
+			r->length = 0;	// Restore 1st SYNC byte already received
+			preamb_pulse_counter_V30 = 1;
+			duration_next = 0;
+			r->pulses[r->length++] = latch_duration;
+			if (*duration > O21_FOOTER+34) {	// A footer is a footer
+				*duration = O21_FOOTER+34;
+				r->pulses[r->length] = *duration;
+			} else {
+				// pilight may have missed significant a number of pulses
+				// The length of the pulse is not correct
+				// to resynchronize, lets get the next pulse as well
+				// both length together are close to absolute duration
+				// and based on our knowledge of the SYNC structure
+				// we can recreate the header pulse sequence
+				if (*duration  > PREAMB_SYNC_DMAX) {
+					duration_next = hw->receiveOOK();
+					*duration += duration_next;
+					p_header_30 = 1;	// The 2nd pulse is long
+				}
+				// Rebuild V3.0 SYNC Header: 976, 976 976
+				while ( (*duration > 100) && (p_header_30 < (unsigned int)L_HEADER_30) ) {
+					r->pulses[r->length++] = header_30[p_header_30];
+					// panic - take the exit, set state to WFH
+					if(r->length > MAXPULSESTREAMLENGTH-1) {
+						r->length = 1;	// Get's set to zero after end of the loop
+						preamb_duration_V30 = 0;
+						preamb_pulse_counter_V30 = 1; //Get's set to zero after end of the loop
+						preamb_state = WAIT_FOR_END_OF_HEADER_V30;
+						break;
+					}
+					*duration -= header_30[p_header_30];
+					preamb_pulse_counter_V30++;
+					p_header_30++;
+				}
+				r->length--;	// Adjust pointer
+				preamb_pulse_counter_V30--;	// Adjust counter
+			}
+			// if panic - ensure that we do not override the WFH state
+			if (preamb_state!=WAIT_FOR_END_OF_HEADER_V30) {
+				preamb_state = WAIT_FOR_END_OF_DATA_3_V30;
+			}
+			break;
+
+			case WAIT_FOR_END_OF_DATA_3_V30:
+			if (*duration > 5100) {
+				preamb_state = WAIT_FOR_END_OF_HEADER_V30;
+				*duration = O21_FOOTER+34;	// Replace GAP with defined footer value
+				r->pulses[r->length]   = *duration;
+			}
+			break;
+
+			default:
+			break;
+		} // Switch preamb_state_V30
+
 
 		r->length++;
 		if(r->length > MAXPULSESTREAMLENGTH-1) {
 			r->length = 0;
 			preamb_duration = 0;
+			preamb_duration_V30 = 0;
 			preamb_pulse_counter = 0;
+			preamb_pulse_counter_V30 = 0;
 			preamb_state = WAIT_FOR_END_OF_HEADER;
 		}
 		if(*duration > hw->mingaplen) {
@@ -1724,14 +1846,19 @@ int plslen = 0;
 				receive_queue(r->pulses, r->length, plslen, hw->hwtype);
 				r->length = 0;
 			}
-			// Avoid that short footer pulses (X10, IMPULS, ...) interfere with long header /sync pulses
+			// Avoid that short footer pulses (X10, IMPULS, ...) interfere with similar length header or sync pulses
 			if(r->length > 20) {
 				// Avoid a buffer reset and preserve potential Header / SYNC / Start pulses
 				r->length = 0;
 				preamb_duration = 0;
+				preamb_duration_V30 = 0;
 				preamb_pulse_counter = 0;
+				preamb_pulse_counter_V30 = 0;
 				if (preamb_state == WAIT_FOR_END_OF_DATA) {
 					preamb_state = WAIT_FOR_END_OF_DATA_2;
+				}
+				if (preamb_state == WAIT_FOR_END_OF_DATA_V30) {
+					preamb_state = WAIT_FOR_END_OF_DATA_2_V30;
 				}
 			}
 		} // if duration > 5100
