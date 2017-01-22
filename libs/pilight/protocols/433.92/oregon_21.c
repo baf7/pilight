@@ -502,7 +502,7 @@ static void parseCode(void) {
 			}
 			logprintf(LOG_DEBUG, "OREGON: device: %d - id: %d - unit: %d - batt: %d - temp: %f - humi: %f - uv: %d",device_id, id, unit, battery, temp, humidity, uv);
 			logprintf(LOG_DEBUG, "OREGON: wind_dir: %d - wind_speed: %d - wind_avg: %d - rain: %d - rain_total: %d - pressure: %d", wind_dir, wind_speed, wind_avg, rain, rain_total, pressure);
-			if (pChksum != 0) logprintf(LOG_DEBUG, "OREGON_21: pChksum at: %d, calc: %x, expected: %x, bin end at: %d, crc: %x", pChksum, chksum, binToDec(binary,pChksum, pChksum+7), pBin, binToDec(binary,pChksum+8, pChksum+15));
+			if (pChksum != 0) logprintf(LOG_DEBUG, "OREGON: pChksum at: %d, calc: %x, expected: %x, bin end at: %d, crc: %x", pChksum, chksum, binToDec(binary,pChksum, pChksum+7), pBin, binToDec(binary,pChksum+8, pChksum+15));
 		}
 	} else {
 	} // End if > 97
