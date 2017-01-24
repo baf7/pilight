@@ -342,6 +342,15 @@ static void parseCode(void) {
 		tmp = tmp->next;
 		}
 
+		logprintf(LOG_DEBUG, "**** somfy_rts BIN CODE ****");
+		if(log_level_get() >= LOG_DEBUG) {
+			for(i=0;i<BIN_ARRAY_SOMFY_PROT;i++) {
+				printf("%d ", dec_frame[i]);
+			}
+			printf(" -addr: %d -cmd: %d -rk: %d -rc: %d -cksum: %d -kl: %d", address, command, rollingkey, rollingcode, cksum, key_left);
+			printf("\n");
+		}
+
 		if ( ( key_left == 10 && 0 == cksum)) {
 			createMessage(address, command, rollingcode, rollingkey, repeats);
 		}
