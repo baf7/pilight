@@ -349,7 +349,7 @@ starttls:
 			error = -1;
 			goto close;
 		}
-		if(strncmp(recvBuff, "501", 1) == 0) {
+		if(strncmp(recvBuff, "500", 1) == 0) {
 			logprintf(LOG_NOTICE, "SMTP: Err 5xy protocol violation - aborting");
 			error = -1;
 			goto close;
