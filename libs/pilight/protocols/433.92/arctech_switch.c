@@ -31,11 +31,11 @@
 #include "arctech_switch.h"
 
 #define LEARN_REPEATS			40
-#define NORMAL_REPEATS		10
+#define NORMAL_REPEATS		4
 #define PULSE_MULTIPLIER	4
 #define MIN_PULSE_LENGTH	250
-#define MAX_PULSE_LENGTH	320
-#define AVG_PULSE_LENGTH	315
+#define MAX_PULSE_LENGTH	310
+#define AVG_PULSE_LENGTH	275
 #define RAW_LENGTH				132
 
 static int validate(void) {
@@ -116,7 +116,7 @@ static void createHigh(int s, int e) {
 		arctech_switch->raw[i]=(AVG_PULSE_LENGTH);
 		arctech_switch->raw[i+1]=(AVG_PULSE_LENGTH*PULSE_MULTIPLIER);
 		arctech_switch->raw[i+2]=(AVG_PULSE_LENGTH);
-		arctech_switch->raw[i+3]=(AVG_PULSE_LENGTH);
+		arctech_switch->raw[i+3]=(MAX_PULSE_LENGTH);
 	}
 }
 
@@ -238,6 +238,7 @@ __attribute__((weak))
 void arctechSwitchInit(void) {
 	protocol_register(&arctech_switch);
 	protocol_set_id(arctech_switch, "arctech_switch");
+	protocol_device_add(arctech_switch, "smartwave", "smartwave_valves");
 	protocol_device_add(arctech_switch, "kaku_switch", "KlikAanKlikUit Switches");
 	protocol_device_add(arctech_switch, "dio_switch", "D-IO Switches");
 	protocol_device_add(arctech_switch, "nexa_switch", "Nexa Switches");
@@ -270,7 +271,7 @@ void arctechSwitchInit(void) {
 #if defined(MODULE) && !defined(_WIN32)
 void compatibility(struct module_t *module) {
 	module->name = "arctech_switch";
-	module->version = "3.4";
+	module->version = "3.41";
 	module->reqversion = "6.0";
 	module->reqcommit = "84";
 }
