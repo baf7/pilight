@@ -209,6 +209,16 @@ starttls:
 			error = -1;
 			goto close;
 		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
+		}
 	}
 
 	len = strlen("EHLO ")+strlen(USERAGENT)+3;
@@ -344,13 +354,13 @@ starttls:
 		if(strncmp(recvBuff, "235", 3) == 0) {
 			break;
 		}
-		if(strncmp(recvBuff, "451", 1) == 0) {
-			logprintf(LOG_NOTICE, "SMTP: Err 4xy protocol violation - aborting");
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
 			error = -1;
 			goto close;
 		}
-		if(strncmp(recvBuff, "500", 1) == 0) {
-			logprintf(LOG_NOTICE, "SMTP: Err 5xy protocol violation - aborting");
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
 			error = -1;
 			goto close;
 		}
@@ -380,6 +390,16 @@ starttls:
 		if(strncmp(recvBuff, "250", 3) == 0) {
 			break;
 		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
+		}
 		memset(recvBuff, '\0', sizeof(recvBuff));
 	}
 
@@ -406,6 +426,16 @@ starttls:
 		if(strncmp(recvBuff, "250", 3) == 0) {
 			break;
 		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
+		}
 		memset(recvBuff, '\0', sizeof(recvBuff));
 	}
 
@@ -431,6 +461,16 @@ starttls:
 		}
 		if(strncmp(recvBuff, "354", 3) == 0) {
 			break;
+		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
 		}
 		memset(recvBuff, '\0', sizeof(recvBuff));
 	}
@@ -467,6 +507,16 @@ starttls:
 		if(strncmp(recvBuff, "250", 3) == 0) {
 			break;
 		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
+		}
 		memset(recvBuff, '\0', sizeof(recvBuff));
 	}
 
@@ -492,6 +542,16 @@ starttls:
 		}
 		if(strncmp(recvBuff, "250", 3) == 0) {
 			break;
+		}
+		if(strncmp(recvBuff, "4xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: connection protocol issues - abort");
+			error = -1;
+			goto close;
+		}
+		if(strncmp(recvBuff, "5xx", 1) == 0) {
+			logprintf(LOG_NOTICE, "SMTP: negative response from remote server - abort");
+			error = -1;
+			goto close;
 		}
 		memset(recvBuff, '\0', sizeof(recvBuff));
 	}
