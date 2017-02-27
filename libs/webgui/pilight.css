@@ -124,7 +124,7 @@
 	left: 10px;
 }
 
-div.ui-slider-switch, div.screen {
+div.ui-slider-switch, div.screen, div.contact {
 	position: absolute;
 	right: 10px;
 }
@@ -152,9 +152,15 @@ li.label .marquee {
 }
 
 div.screen {
-	right: -60px;
+	right: -20px;
 	top: -10px;
-	width: 300px;
+	width: 205px;
+}
+
+div.contact {
+	right: -20px;
+	top: -10px;
+	width: 205px;
 }
 
 .ui-li .ui-btn-inner a.ui-link-inherit, .ui-li-static.ui-li {
@@ -163,7 +169,7 @@ div.screen {
 
 div.name {
 	padding-top: 4px;
-	position: relative;
+  position: relative;
 	float: left;
 }
 
@@ -323,6 +329,14 @@ div.action_icon.screen_active {
 
 div.action_icon.screen_inactive {
 	background: url('screen_inactive.png') 0px 0px no-repeat;
+}
+
+div.action_icon.contact_active {
+	background: url('contact_active.png') 0px 0px no-repeat;
+}
+
+div.action_icon.contact_inactive {
+	background: url('contact_inactive.png') 0px 0px no-repeat;
 }
 
 div.action_icon.shutdown {
