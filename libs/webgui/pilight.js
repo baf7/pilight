@@ -449,15 +449,12 @@ function createContactElement(sTabId, sDevId, aValues) {
 			}
 		});
 	}
+	$('#'+sDevId+'_contact_opened').checkboxradio('disable');
+	$('#'+sDevId+'_contact_closed').checkboxradio('disable');
+	$('#'+sDevId+'_contact_opened').fadeTo(0,0.1);
+	$('#'+sDevId+'_contact_closed').fadeTo(0,0.9);
 	oTab.listview();
 	oTab.listview("refresh");
-	if('readonly' in aValues && aValues['readonly']) {
-		aReadOnly[sDevId] = 1;
-		$('#'+sDevId+'_contact_opened').checkboxradio('disable');
-		$('#'+sDevId+'_contect_closed').checkboxradio('disable');
-	} else {
-		aReadOnly[sDevId] = 0;
-	}
 }
 
 function createScreenElement(sTabId, sDevId, aValues) {
