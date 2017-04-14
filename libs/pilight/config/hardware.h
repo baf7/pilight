@@ -28,7 +28,8 @@ typedef enum {
 	ZWAVE,
 	SENSOR,
 	HWRELAY,
-	API
+	API,
+	RF315
 } hwtype_t;
 
 typedef enum {

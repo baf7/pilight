@@ -93,5 +93,6 @@ set(PROTOCOL_WUNDERGROUND ON CACHE BOOL "support for the Weather Underground API
 set(PROTOCOL_X10 ON CACHE BOOL "support for the X10 protocol")
 set(PROTOCOL_XBMC ON CACHE BOOL "support for the XBMC API")
 set(HARDWARE_433_GPIO ON CACHE BOOL "support for the direct GPIO communication")
+set(HARDWARE_315_GPIO ON CACHE BOOL "support for the direct GPIO 315MHz communication")
 set(HARDWARE_433_LIRC ON CACHE BOOL "support for the lirc_rpi kernel module")
 set(PROTOCOL_PHILIPSHUE ON CACHE BOOL "support for Philips Hue API")
