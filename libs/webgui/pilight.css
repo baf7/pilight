@@ -152,9 +152,15 @@ li.label .marquee {
 }
 
 div.screen {
-	right: -60px;
+	right: -20px;
 	top: -10px;
-	width: 300px;
+	width: 205px;
+}
+
+div.contact {
+	right: -20px;
+	top: -10px;
+	width: 265px;
 }
 
 div.contact {
@@ -169,7 +175,7 @@ div.contact {
 
 div.name {
 	padding-top: 4px;
-	position: relative;
+  position: relative;
 	float: left;
 }
 

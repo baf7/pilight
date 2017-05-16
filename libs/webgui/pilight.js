@@ -464,28 +464,107 @@ function createScreenElement(sTabId, sDevId, aValues) {
 		} else {
 			oTab = $('#all');
 		}
-		
-		// check if protocol requires 3 buttons
-		isSomfy = false;
-		if ('protocol' in aValues) {
-			prot = aValues['protocol'];
-			if (prot.length > 0) {
-				isSomfy = (prot[0] == 'somfy_rts')
-			}
-		}
-		
 		if('name' in aValues) {
-			if (isSomfy) {
-				oTab.append($('<li  id="'+sDevId+'" class="screen" data-icon="false"><div class="name">'+aValues['name']+'</div><div id="'+sDevId+'_screen" class="screen" data-role="fieldcontain" data-type="horizontal"><fieldset data-role="controlgroup" class="controlgroup" data-type="horizontal" data-mini="true"><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_down" value="down" /><label for="'+sDevId+'_screen_down">'+language.down+'</label><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_stopped" value="my" /><label for="'+sDevId+'_screen_stopped">'+language.stopped+'</label><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_up" value="up" /><label for="'+sDevId+'_screen_up">'+language.up+'</label></fieldset></div></li>'));
-			} else {
-				oTab.append($('<li  id="'+sDevId+'" class="screen" data-icon="false"><div class="name">'+aValues['name']+'</div><div id="'+sDevId+'_screen" class="screen" data-role="fieldcontain" data-type="horizontal"><fieldset data-role="controlgroup" class="controlgroup" data-type="horizontal" data-mini="true"><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_down" value="down" /><label for="'+sDevId+'_screen_down">'+language.down+'</label><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_up" value="up" /><label for="'+sDevId+'_screen_up">'+language.up+'</label></fieldset></div></li>'));
+			oTab.append($('<li  id="'+sDevId+'" class="contact" data-icon="false"><div class="name">'+aValues['name']+'</div><div id="'+sDevId+'_contact" class="contact" data-role="fieldcontain" data-type="horizontal"><fieldset data-role="controlgroup" class="controlgroup" data-type="horizontal" data-mini="true"><input type="radio" name="'+sDevId+'_contact" id="'+sDevId+'_contact_closed" value="closed" /><label for="'+sDevId+'_contact_closed">'+language.closed+'</label><input type="radio" name="'+sDevId+'_contact" id="'+sDevId+'_contact_opened" value="opened" /><label for="'+sDevId+'_contact_opened">'+language.opened+'</label></fieldset></div></li>'));
+		}
+		$("div").trigger("create");
+		$('#'+sDevId+'_contact_closed').checkboxradio();
+		$('#'+sDevId+'_contact_opened').checkboxradio();
+		$('#'+sDevId+'_contact_closed').bind("change", function(event, ui) {
+			event.stopPropagation();
+			if('confirm' in aValues && aValues['confirm']) {
+				if(window.confirm("Are you sure?") == false) {
+					return false;
+				}
 			}
+			i = 0;
+			oLabel = this.parentNode.getElementsByTagName('label')[0];
+			$(oLabel).removeClass('ui-btn-active');
+			x = window.setInterval(function() {
+				i++;
+				if(i%2 == 1)
+					$(oLabel).removeClass('ui-btn-active');
+				else
+					$(oLabel).addClass('ui-btn-active');
+				if(i==2)
+					window.clearInterval(x);
+			}, 100);
+
+			if(oWebsocket) {
+				if('all' in aValues && aValues['all'] == 1) {
+					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'","values":{"all": 1}}}';
+				} else {
+					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'"}}'
+				}
+				oWebsocket.send(json);
+			} else {
+				bSending = true;
+				if('all' in aValues && aValues['all'] == 1) {
+					$.get(sHTTPProtocol+'://'+location.host+'/control/control?device='+sDevId+'&state='+this.value+'&values[all]=1');
+				} else {
+					$.get(sHTTPProtocol+'://'+location.host+'/control?device='+sDevId+'&state='+this.value);
+				}
+				window.setTimeout(function() { bSending = false; }, 1000);
+			}
+		});
+		$('#'+sDevId+'_contact_opened').bind("change", function(event, ui) {
+			event.stopPropagation();
+			if('confirm' in aValues && aValues['confirm']) {
+				if(window.confirm("Are you sure?") == false) {
+					return false;
+				}
+			}
+			i = 0;
+			oLabel = this.parentNode.getElementsByTagName('label')[0];
+			$(oLabel).removeClass('ui-btn-active');
+			x = window.setInterval(function() {
+				i++;
+				if(i%2 == 1)
+					$(oLabel).removeClass('ui-btn-active');
+				else
+					$(oLabel).addClass('ui-btn-active');
+				if(i==2)
+					window.clearInterval(x);
+			}, 100);
+
+			if(oWebsocket) {
+				if('all' in aValues && aValues['all'] == 1) {
+					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'","values":{"all": 1}}}';
+				} else {
+					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'"}}'
+				}
+				oWebsocket.send(json);
+			} else {
+				bSending = true;
+				if('all' in aValues && aValues['all'] == 1) {
+					$.get(sHTTPProtocol+'://'+location.host+'/control?device='+sDevId+'&state='+this.value+'&values[all]=1');
+				} else {
+					$.get(sHTTPProtocol+'://'+location.host+'/control?device='+sDevId+'&state='+this.value);
+				}
+				window.setTimeout(function() { bSending = false; }, 1000);
+			}
+		});
+	}
+	$('#'+sDevId+'_contact_opened').checkboxradio('disable');
+	$('#'+sDevId+'_contact_closed').checkboxradio('disable');
+	$('#'+sDevId+'_contact_opened').fadeTo(0,0.1);
+	$('#'+sDevId+'_contact_closed').fadeTo(0,0.9);
+	oTab.listview();
+	oTab.listview("refresh");
+}
+
+function createScreenElement(sTabId, sDevId, aValues) {
+	if($('#'+sDevId+'_screen').length == 0) {
+		if(bShowTabs) {
+			oTab = $('#'+sTabId).find('ul');
+		} else {
+			oTab = $('#all');
+		}
+		if('name' in aValues) {
+			oTab.append($('<li  id="'+sDevId+'" class="screen" data-icon="false"><div class="name">'+aValues['name']+'</div><div id="'+sDevId+'_screen" class="screen" data-role="fieldcontain" data-type="horizontal"><fieldset data-role="controlgroup" class="controlgroup" data-type="horizontal" data-mini="true"><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_down" value="down" /><label for="'+sDevId+'_screen_down">'+language.down+'</label><input type="radio" name="'+sDevId+'_screen" id="'+sDevId+'_screen_up" value="up" /><label for="'+sDevId+'_screen_up">'+language.up+'</label></fieldset></div></li>'));
 		}
 		$("div").trigger("create");
 		$('#'+sDevId+'_screen_down').checkboxradio();
-		if (isSomfy) {
-			$('#'+sDevId+'_screen_stopped').checkboxradio();
-		}
 		$('#'+sDevId+'_screen_up').checkboxradio();
 		$('#'+sDevId+'_screen_down').bind("change", function(event, ui) {
 			event.stopPropagation();
@@ -524,40 +603,6 @@ function createScreenElement(sTabId, sDevId, aValues) {
 				window.setTimeout(function() { bSending = false; }, 1000);
 			}
 		});
-		if (isSomfy) {
-			$('#'+sDevId+'_screen_stopped').bind("change", function(event, ui) {
-				event.stopPropagation();
-				if('confirm' in aValues && aValues['confirm']) {
-					if(window.confirm("Are you sure?") == false) {
-						return false;
-					}
-				}
-				i = 0;
-				oLabel = this.parentNode.getElementsByTagName('label')[0];
-				$(oLabel).removeClass('ui-btn-active');
-				x = window.setInterval(function() {
-					i++;
-					if(i%2 == 1)
-						$(oLabel).removeClass('ui-btn-active');
-					else
-						$(oLabel).addClass('ui-btn-active');
-					if(i==2)
-						window.clearInterval(x);
-				}, 100);
-				if('all' in aValues && aValues['all'] == 1) {
-					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'","values":{"all": 1}}}';
-				} else {
-					var json = '{"action":"control","code":{"device":"'+sDevId+'","state":"'+this.value+'"}}'
-				}
-				if(oWebsocket) {
-					oWebsocket.send(json);
-				} else {
-					bSending = true;
-					$.get(sHTTPProtocol+'://'+location.host+'/send?'+encodeURIComponent(json)+'&'+$.now());
-					window.setTimeout(function() { bSending = false; }, 1000);
-				}
-			});
-		}
 		$('#'+sDevId+'_screen_up').bind("change", function(event, ui) {
 			event.stopPropagation();
 			if('confirm' in aValues && aValues['confirm']) {
@@ -601,9 +646,6 @@ function createScreenElement(sTabId, sDevId, aValues) {
 	if('readonly' in aValues && aValues['readonly']) {
 		aReadOnly[sDevId] = 1;
 		$('#'+sDevId+'_screen_up').checkboxradio('disable');
-		if (isSomfy) {
-            $('#'+sDevId+'_screen_stopped').checkboxradio('disable');
-        }
 		$('#'+sDevId+'_screen_down').checkboxradio('disable');
 	} else {
 		aReadOnly[sDevId] = 0;
@@ -686,7 +728,6 @@ function createDimmerElement(sTabId, sDevId, aValues) {
 		oTab.listview();
 		oTab.listview("refresh");
 	}
-
 	$('#'+sDevId+'_dimmer').slider('refresh');
 	if('readonly' in aValues && aValues['readonly']) {
 		aReadOnly[sDevId] = 1;
@@ -1090,11 +1131,7 @@ function parseValues(data) {
 					if(vindex == 'state' && $('#'+dvalues+'_screen').length > 0) {
 						if(vvalues == 'up') {
 							$('#'+dvalues+'_screen_up').parent().find("label").addClass("ui-btn-active");
-						}
-						if(vvalues == 'stopped') {
-							$('#'+dvalues+'_screen_stopped').parent().find("label").addClass("ui-btn-active");
-						}
-						if(vvalues == 'down') {
+						} else {
 							$('#'+dvalues+'_screen_down').parent().find("label").addClass("ui-btn-active");
 						}
 					}
